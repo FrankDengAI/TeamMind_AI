@@ -1,10 +1,10 @@
-<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+<svg width="1280" height="680" viewBox="0 0 1280 680" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">TeamMind AI hero preview</title>
   <desc id="desc">Product preview banner for TeamMind AI / 组队超脑.</desc>
   <defs>
-    <linearGradient id="bg" x1="120" y1="40" x2="1160" y2="620" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0F172A"/>
-      <stop offset="0.5" stop-color="#111827"/>
+    <linearGradient id="bg" x1="120" y1="40" x2="1160" y2="660" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#020617"/>
+      <stop offset="0.45" stop-color="#0F172A"/>
       <stop offset="1" stop-color="#312E81"/>
     </linearGradient>
     <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1">
@@ -15,35 +15,63 @@
       <stop stop-color="#FFFFFF" stop-opacity="0.18"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.06"/>
     </linearGradient>
+    <linearGradient id="titleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.5" stop-color="#E0F2FE"/>
+      <stop offset="1" stop-color="#C4B5FD"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#FFFFFF" stroke-opacity="0.04"/>
+    </pattern>
     <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
       <feDropShadow dx="0" dy="24" stdDeviation="24" flood-color="#000000" flood-opacity="0.35"/>
     </filter>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
   </defs>
-  <rect width="1280" height="640" rx="36" fill="url(#bg)"/>
+  <rect width="1280" height="680" rx="36" fill="url(#bg)"/>
+  <rect width="1280" height="680" rx="36" fill="url(#grid)"/>
   <circle cx="1120" cy="120" r="180" fill="#22D3EE" opacity="0.13"/>
-  <circle cx="180" cy="550" r="220" fill="#8B5CF6" opacity="0.14"/>
+  <circle cx="180" cy="580" r="220" fill="#8B5CF6" opacity="0.14"/>
+  <circle cx="640" cy="340" r="280" fill="#6366F1" opacity="0.05"/>
   <g filter="url(#shadow)">
-    <rect x="70" y="72" width="1140" height="496" rx="30" fill="#020617" fill-opacity="0.5" stroke="#FFFFFF" stroke-opacity="0.16"/>
-    <rect x="96" y="98" width="1088" height="444" rx="24" fill="url(#card)" stroke="#FFFFFF" stroke-opacity="0.16"/>
+    <rect x="70" y="72" width="1140" height="536" rx="30" fill="#020617" fill-opacity="0.5" stroke="#FFFFFF" stroke-opacity="0.16"/>
+    <rect x="96" y="98" width="1088" height="484" rx="24" fill="url(#card)" stroke="#FFFFFF" stroke-opacity="0.16"/>
   </g>
   <g transform="translate(132 140)">
     <rect x="0" y="0" width="150" height="34" rx="17" fill="#22D3EE" fill-opacity="0.16" stroke="#67E8F9" stroke-opacity="0.5"/>
-    <text x="75" y="22" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="700" fill="#A5F3FC">AI TEAMING</text>
-    <text x="0" y="88" font-family="Microsoft YaHei, Inter, Segoe UI, Arial, sans-serif" font-size="58" font-weight="900" fill="#FFFFFF">组队超脑</text>
-    <text x="0" y="132" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="34" font-weight="800" fill="#C4B5FD">TeamMind AI</text>
-    <text x="0" y="176" font-family="Microsoft YaHei, Inter, Segoe UI, Arial, sans-serif" font-size="24" font-weight="700" fill="#E0F2FE">AI 智能组队与任务匹配协作平台</text>
-    <text x="0" y="214" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="18" fill="#CBD5E1">Profile intelligence · Explainable grouping · Task matching · Live analytics</text>
-    <text x="0" y="246" font-family="Microsoft YaHei, Inter, Segoe UI, Arial, sans-serif" font-size="18" fill="#CBD5E1">学生画像 · 智能组队 · 任务匹配 · 过程看板</text>
+    <text x="75" y="22" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="700" fill="#A5F3FC">AI TEAMING COPILOT</text>
+    <text x="0" y="96" font-family="Microsoft YaHei, Inter, Segoe UI, Arial, sans-serif" font-size="64" font-weight="900" fill="url(#titleGrad)">组队超脑</text>
+    <text x="0" y="144" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="36" font-weight="800" fill="#C4B5FD">TeamMind AI</text>
+    <text x="0" y="188" font-family="Microsoft YaHei, Inter, Segoe UI, Arial, sans-serif" font-size="24" font-weight="700" fill="#E0F2FE">AI 智能组队 · 任务匹配 · 协作看板</text>
+    <text x="0" y="226" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="18" fill="#CBD5E1">Profile intelligence · Explainable grouping · Task matching · Live analytics</text>
+    <g transform="translate(0 260)">
+      <rect x="0" y="0" width="118" height="34" rx="17" fill="#0B1220" stroke="#22D3EE" stroke-opacity="0.35"/>
+      <text x="59" y="22" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="700" fill="#67E8F9">Flask API</text>
+      <rect x="130" y="0" width="118" height="34" rx="17" fill="#0B1220" stroke="#A78BFA" stroke-opacity="0.35"/>
+      <text x="189" y="22" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="700" fill="#C4B5FD">Vue 3 UI</text>
+      <rect x="260" y="0" width="118" height="34" rx="17" fill="#0B1220" stroke="#34D399" stroke-opacity="0.35"/>
+      <text x="319" y="22" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="700" fill="#6EE7B7">SQLite</text>
+      <rect x="390" y="0" width="132" height="34" rx="17" fill="#0B1220" stroke="#FBBF24" stroke-opacity="0.35"/>
+      <text x="456" y="22" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="700" fill="#FCD34D">DeepSeek</text>
+    </g>
   </g>
   <g transform="translate(770 126)" filter="url(#shadow)">
-    <rect x="0" y="0" width="360" height="378" rx="26" fill="#0B1220" stroke="#FFFFFF" stroke-opacity="0.18"/>
+    <rect x="0" y="0" width="360" height="420" rx="26" fill="#0B1220" stroke="#FFFFFF" stroke-opacity="0.18"/>
     <text x="180" y="54" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="20" font-weight="800" fill="#FFFFFF">Collaboration Command Center</text>
     <text x="180" y="84" text-anchor="middle" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="15" font-weight="700" fill="#94A3B8">教师指挥台 · 学生协作舱</text>
-    <text x="120" y="156" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#FFFFFF">画像采集</text>
-    <text x="120" y="216" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#FFFFFF">智能组队</text>
-    <text x="120" y="276" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#FFFFFF">任务匹配</text>
-    <rect x="24" y="312" width="312" height="28" rx="14" fill="#FFFFFF" fill-opacity="0.08"/>
-    <rect x="24" y="312" width="248" height="28" rx="14" fill="url(#cyan)"/>
-    <text x="40" y="331" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#FFFFFF">Team balance score 92%</text>
+    <rect x="24" y="108" width="312" height="54" rx="14" fill="#111827" stroke="#67E8F9" stroke-opacity="0.25"/>
+    <text x="40" y="140" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">01 画像采集 Profile</text>
+    <rect x="24" y="174" width="312" height="54" rx="14" fill="#111827" stroke="#A78BFA" stroke-opacity="0.25"/>
+    <text x="40" y="206" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">02 智能组队 Grouping</text>
+    <rect x="24" y="240" width="312" height="54" rx="14" fill="#111827" stroke="#34D399" stroke-opacity="0.25"/>
+    <text x="40" y="272" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">03 任务匹配 Tasks</text>
+    <rect x="24" y="306" width="312" height="54" rx="14" fill="#111827" stroke="#FBBF24" stroke-opacity="0.25"/>
+    <text x="40" y="338" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">04 过程看板 Analytics</text>
+    <rect x="24" y="372" width="312" height="28" rx="14" fill="#FFFFFF" fill-opacity="0.08"/>
+    <rect x="24" y="372" width="268" height="28" rx="14" fill="url(#cyan)" filter="url(#glow)"/>
+    <text x="40" y="391" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#FFFFFF">Team balance score 92% · Explainable AI</text>
   </g>
 </svg>

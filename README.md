@@ -1,35 +1,62 @@
 <div align="center">
-  <img src="docs/readme-hero.svg" alt="组队超脑 TeamMind AI - AI Teaming Copilot for Smart Grouping, Task Matching & Collaboration" width="100%" />
-</div>
 
-<h1 align="center">组队超脑</h1>
+<img src="docs/readme-hero.svg" alt="组队超脑 TeamMind AI - AI Teaming Copilot for Smart Grouping, Task Matching & Collaboration" width="100%" />
 
-<p align="center"><strong>TeamMind AI</strong></p>
+<br />
 
-<p align="center">
-  <strong>组队超脑：AI 智能组队与任务匹配协作平台</strong><br />
-  <strong>AI Teaming Copilot for Smart Grouping, Task Matching & Collaboration</strong>
-</p>
+<h1>组队超脑 · TeamMind AI</h1>
 
-<p align="center">
-  <a href="#快速开始--quick-start">快速开始</a> ·
-  <a href="#核心能力--core-capabilities">核心能力</a> ·
-  <a href="#系统架构--architecture">系统架构</a> ·
-  <a href="#接口地图--api-map">接口地图</a> ·
-  <a href="#部署说明--deployment">部署说明</a>
-</p>
+<h3>AI 智能组队 · 任务匹配 · 协作看板 · 可解释评价</h3>
+<h3><em>AI Teaming Copilot for Smart Grouping, Task Matching & Collaboration</em></h3>
 
-<p align="center">
-  <img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" />
-  <img alt="Flask" src="https://img.shields.io/badge/Flask-3.x-111827?style=for-the-badge&logo=flask&logoColor=white" />
-  <img alt="Vue" src="https://img.shields.io/badge/Vue-3-42B883?style=for-the-badge&logo=vuedotjs&logoColor=white" />
-  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-Local%20First-003B57?style=for-the-badge&logo=sqlite&logoColor=white" />
-  <img alt="License" src="https://img.shields.io/badge/License-MIT-7C3AED?style=for-the-badge" />
-</p>
+<br />
 
-> 中文：组队超脑（TeamMind AI）面向高校课程小组、毕业设计、竞赛团队、企业项目制学习等场景，帮助教师从“随机分组 + 人工监督”升级到“画像驱动 + AI 组队 + 可解释任务匹配 + 过程数据评价”的闭环协作学习模式。
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-3.x-111827?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
+[![Vue](https://img.shields.io/badge/Vue-3-42B883?style=for-the-badge&logo=vuedotjs&logoColor=white)](https://vuejs.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-Local_First-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![DeepSeek](https://img.shields.io/badge/DeepSeek-LLM_Enhanced-0EA5E9?style=for-the-badge)](https://platform.deepseek.com/)
+[![Zeabur](https://img.shields.io/badge/Deploy-Zeabur-7C3AED?style=for-the-badge)](https://zeabur.com/zh-CN/)
+[![License](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)](LICENSE)
+
+<br />
+
+**[快速开始](#快速开始--quick-start)** ·
+**[核心能力](#核心能力--core-capabilities)** ·
+**[系统架构](#系统架构--architecture)** ·
+**[接口地图](#接口地图--api-map)** ·
+**[部署说明](#部署说明--deployment)**
+
+<br />
+
+<table>
+  <tr>
+    <td align="center" width="25%">
+      <strong>🧠 画像驱动</strong><br />
+      <sub>主动标签 · 简历解析 · 行为回流</sub>
+    </td>
+    <td align="center" width="25%">
+      <strong>🤝 智能组队</strong><br />
+      <sub>技能均衡 · 角色互补 · 可解释分组</sub>
+    </td>
+    <td align="center" width="25%">
+      <strong>🎯 任务匹配</strong><br />
+      <sub>难度适配 · 工时负载 · 动态调优</sub>
+    </td>
+    <td align="center" width="25%">
+      <strong>📊 过程看板</strong><br />
+      <sub>进度监督 · 风险预警 · 报告导出</sub>
+    </td>
+  </tr>
+</table>
+
+<br />
+
+> **中文**：组队超脑面向高校课程小组、毕业设计、竞赛团队与企业项目制学习，帮助教师从「随机分组 + 人工监督」升级到「**画像驱动 + AI 组队 + 可解释任务匹配 + 过程数据评价**」的闭环协作模式。
 >
-> English: TeamMind AI helps classrooms, capstone projects, competitions and project-based learning teams move from random grouping to a closed-loop workflow powered by profile intelligence, explainable AI grouping, role-aware task matching and collaboration analytics.
+> **English**: TeamMind AI helps classrooms, capstone projects, competitions and project-based learning teams move from random grouping to a closed-loop workflow powered by profile intelligence, explainable AI grouping, role-aware task matching and collaboration analytics.
+
+</div>
 
 ---
 
@@ -54,14 +81,36 @@
 
 ## 项目亮点 / Highlights
 
-| 中文 | English |
-| --- | --- |
-| **画像驱动组队**：融合主动标签、文本/简历解析、被动行为与任务表现，形成知识、技能、协作三维画像。 | **Profile-driven grouping**: combines active tags, text/resume parsing, passive behavior and task performance into knowledge, skill and collaboration profiles. |
-| **异构互补分组**：按技能种子、角色差异、专业多样性、标签互补度进行可解释分组。 | **Heterogeneous team formation**: balances skill seeds, role diversity, major diversity and tag complementarity with explainable notes. |
-| **任务智能匹配**：根据难度、角色偏好、工时负载与依赖关系分配子任务。 | **Task intelligence**: assigns subtasks by difficulty, role preference, workload and dependency priority. |
-| **过程监督可视化**：教师端与学生端均可查看任务进度、团队状态、预警和积极性。 | **Visible collaboration process**: teacher and student workspaces show progress, team state, alerts and engagement signals. |
-| **本地优先部署**：SQLite + 本地文件存储，适合课堂演示、内网部署和小规模课程试运行。 | **Local-first deployment**: SQLite and local file storage make it easy to run in classrooms, intranets and small pilots. |
-| **可选 LLM 增强**：支持 DeepSeek 画像增强；未配置密钥时可降级到规则与标签评分。 | **Optional LLM enhancement**: DeepSeek can improve profile parsing while rule/tag scoring remains available without an API key. |
+<table>
+  <tr>
+    <th width="50%">中文</th>
+    <th width="50%">English</th>
+  </tr>
+  <tr>
+    <td>🧠 <strong>画像驱动组队</strong><br />融合主动标签、文本/简历解析、被动行为与任务表现，形成知识、技能、协作三维画像。</td>
+    <td>🧠 <strong>Profile-driven grouping</strong><br />Combines active tags, text/resume parsing, passive behavior and task performance into knowledge, skill and collaboration profiles.</td>
+  </tr>
+  <tr>
+    <td>🤝 <strong>异构互补分组</strong><br />按技能种子、角色差异、专业多样性、标签互补度进行可解释分组。</td>
+    <td>🤝 <strong>Heterogeneous team formation</strong><br />Balances skill seeds, role diversity, major diversity and tag complementarity with explainable notes.</td>
+  </tr>
+  <tr>
+    <td>🎯 <strong>任务智能匹配</strong><br />根据难度、角色偏好、工时负载与依赖关系分配子任务。</td>
+    <td>🎯 <strong>Task intelligence</strong><br />Assigns subtasks by difficulty, role preference, workload and dependency priority.</td>
+  </tr>
+  <tr>
+    <td>📊 <strong>过程监督可视化</strong><br />教师端与学生端均可查看任务进度、团队状态、预警和积极性。</td>
+    <td>📊 <strong>Visible collaboration process</strong><br />Teacher and student workspaces show progress, team state, alerts and engagement signals.</td>
+  </tr>
+  <tr>
+    <td>☁️ <strong>本地优先 + 公网可部署</strong><br />SQLite + 本地文件存储；支持 Zeabur 一键部署与 Volume 持久化。</td>
+    <td>☁️ <strong>Local-first & cloud-ready</strong><br />SQLite and local file storage; deploy to Zeabur with persistent volumes.</td>
+  </tr>
+  <tr>
+    <td>✨ <strong>可选 LLM 增强</strong><br />支持 DeepSeek 画像增强；未配置密钥时可降级到规则与标签评分。</td>
+    <td>✨ <strong>Optional LLM enhancement</strong><br />DeepSeek can improve profile parsing while rule/tag scoring remains available without an API key.</td>
+  </tr>
+</table>
 
 ---
 
@@ -119,18 +168,75 @@
 
 ## 产品入口 / Product Entrances
 
-| 入口 | 默认地址 | 使用者 | 说明 |
-| --- | --- | --- | --- |
-| 统一门户 / Portal | `http://127.0.0.1:5000/` | 访客、教师、学生 | 角色入口与产品展示 |
-| 教师端 / Teacher App | `http://127.0.0.1:5000/admin/` | 教师 / 管理员 | 课堂指挥舱、分组、任务、报告 |
-| 学生端 / Student App | `http://127.0.0.1:5000/student/` | 学生 | 画像、社区、团队、任务、看板 |
-| API 健康检查 / Health Check | `http://127.0.0.1:5000/api/health` | 开发者 | 返回服务状态 |
+<table>
+  <tr>
+    <th>入口</th>
+    <th>默认地址</th>
+    <th>使用者</th>
+    <th>说明</th>
+  </tr>
+  <tr>
+    <td>🏠 统一门户 / Portal</td>
+    <td><code>http://127.0.0.1:5000/</code></td>
+    <td>访客、教师、学生</td>
+    <td>角色入口与产品展示</td>
+  </tr>
+  <tr>
+    <td>🎓 教师端 / Teacher</td>
+    <td><code>http://127.0.0.1:5000/admin/</code></td>
+    <td>教师 / 管理员</td>
+    <td>课堂指挥舱、分组、任务、报告</td>
+  </tr>
+  <tr>
+    <td>🎒 学生端 / Student</td>
+    <td><code>http://127.0.0.1:5000/student/</code></td>
+    <td>学生</td>
+    <td>画像、社区、团队、任务、看板</td>
+  </tr>
+  <tr>
+    <td>💚 健康检查 / Health</td>
+    <td><code>http://127.0.0.1:5000/api/health</code></td>
+    <td>开发者</td>
+    <td>返回服务状态</td>
+  </tr>
+</table>
 
 ---
 
 ## 快速开始 / Quick Start
 
-### 环境要求 / Requirements
+<div align="center">
+
+### ⚡ 三步启动 · Three Steps to Launch
+
+</div>
+
+<table>
+  <tr>
+    <td width="33%" align="center">
+      <strong>1️⃣ 安装依赖</strong><br /><sub>Install</sub>
+    </td>
+    <td width="33%" align="center">
+      <strong>2️⃣ 一键启动</strong><br /><sub>Start</sub>
+    </td>
+    <td width="33%" align="center">
+      <strong>3️⃣ 打开浏览器</strong><br /><sub>Explore</sub>
+    </td>
+  </tr>
+</table>
+
+```powershell
+# 1. 安装依赖
+pip install -r backend/requirements.txt --index-url https://pypi.org/simple/
+
+# 2. 启动全部服务（门户 + 教师端 + 学生端 + API）
+python main.py
+
+# 3. 访问 http://127.0.0.1:5000/
+```
+
+<details>
+<summary><strong>📋 环境要求 / Requirements</strong></summary>
 
 | 依赖 | 版本 | 说明 |
 | --- | --- | --- |
@@ -138,24 +244,10 @@
 | Node.js | 可选 / optional | 仅当你需要构建 `frontend/` Vue 源码时使用 |
 | SQLite | 内置 / built-in | 默认本地数据库 |
 
-### 1. 安装依赖 / Install Dependencies
+</details>
 
-```powershell
-cd TeamMind-AI
-pip install -r backend/requirements.txt --index-url https://pypi.org/simple/
-```
-
-### 2. 一键启动 / Start Everything
-
-```powershell
-python main.py
-```
-
-启动后将同时提供 / This starts:
-
-- 统一门户 + 教师端 + 学生端 + API：`http://127.0.0.1:5000/`
-
-### 3. 重建演示数据库 / Rebuild Demo Database
+<details>
+<summary><strong>🔄 重建演示数据库 / Rebuild Demo Database</strong></summary>
 
 ```powershell
 python main.py --init
@@ -165,17 +257,40 @@ python main.py --init
 >
 > Note: `--init` rebuilds the local SQLite database. Use it for first-time demos or test resets.
 
+</details>
+
 ---
 
 ## 演示账号 / Demo Accounts
 
-| 角色 | 账号 | 密码 | 说明 |
-| --- | --- | --- | --- |
-| 管理员 / Admin | `admin` | `admin123` | 教师端演示账号 |
-| 学生 / Student | `zhangsan` | `123456` | 内置学生演示账号 |
-| 批量学生 / Batch Students | `student01` - `student20` | `123456` | 由演示脚本生成 |
+<table>
+  <tr>
+    <th>角色</th>
+    <th>账号</th>
+    <th>密码</th>
+    <th>说明</th>
+  </tr>
+  <tr>
+    <td>👨‍🏫 管理员 / Admin</td>
+    <td><code>admin</code></td>
+    <td><code>admin123</code></td>
+    <td>教师端演示账号</td>
+  </tr>
+  <tr>
+    <td>🎒 学生 / Student</td>
+    <td><code>zhangsan</code></td>
+    <td><code>123456</code></td>
+    <td>内置学生演示账号</td>
+  </tr>
+  <tr>
+    <td>👥 批量学生 / Batch</td>
+    <td><code>student01</code> - <code>student20</code></td>
+    <td><code>123456</code></td>
+    <td>由演示脚本生成</td>
+  </tr>
+</table>
 
-演示脚本 / Demo script:
+**20 人答辩演示 / 20-student demo flow:**
 
 ```powershell
 python main.py --no-browser
@@ -191,7 +306,7 @@ The script creates 20 demo students, generates profiles, forms teams, assigns ro
 ## 系统架构 / Architecture
 
 <div align="center">
-  <img src="docs/readme-architecture.svg" alt="TeamMind AI architecture diagram" width="100%" />
+  <img src="docs/readme-workflow.svg" alt="TeamMind AI workflow and architecture overview" width="100%" />
 </div>
 
 ### 技术栈 / Tech Stack
@@ -209,12 +324,14 @@ The script creates 20 demo students, generates profiles, forms teams, assigns ro
 
 ### 请求流 / Request Flow
 
-```text
-main.py
-  -> :5000  /          Unified Portal
-            /admin/    Teacher Workspace
-            /student/  Student Workspace
-            /api/*     Flask API
+```mermaid
+flowchart LR
+  browser[Browser] --> portal["/ Portal"]
+  browser --> admin["/admin/ Teacher"]
+  browser --> student["/student/ Student"]
+  browser --> api["/api/* REST API"]
+  api --> sqlite[(SQLite)]
+  api --> deepseek[DeepSeek optional]
 ```
 
 ---
@@ -436,6 +553,29 @@ python scripts/ui_smoke_test.py --base-url http://127.0.0.1:5000
 
 ## 部署说明 / Deployment
 
+<table>
+  <tr>
+    <th>场景</th>
+    <th>命令 / 配置</th>
+    <th>说明</th>
+  </tr>
+  <tr>
+    <td>🏫 本地课堂</td>
+    <td><code>python main.py</code></td>
+    <td>一键启动三端 + API</td>
+  </tr>
+  <tr>
+    <td>🌐 局域网 / 公网</td>
+    <td><code>python main.py --host 0.0.0.0 --no-browser</code></td>
+    <td>需配置 <code>TEAMMIND_ENV=production</code> 与安全密钥</td>
+  </tr>
+  <tr>
+    <td>☁️ Zeabur 部署</td>
+    <td><code>zbpack.json</code> + Volume <code>/src/data</code></td>
+    <td>见下方 Zeabur 专节与 <a href="docs/DEPLOY.md">docs/DEPLOY.md</a></td>
+  </tr>
+</table>
+
 ### 本地课堂演示 / Local Classroom Demo
 
 ```powershell
@@ -453,20 +593,20 @@ $env:TEAMMIND_CORS_ORIGINS="https://your-domain.example"
 python main.py --host 0.0.0.0 --no-browser
 ```
 
-推荐架构 / Recommended topology:
-
-```text
-Internet / Campus LAN
-  -> HTTPS Reverse Proxy (Nginx / Caddy)
-  -> TeamMind AI :5000
-  -> SQLite + local uploads
+```mermaid
+flowchart LR
+  internet[Internet / Campus LAN] --> proxy[HTTPS Reverse Proxy]
+  proxy --> teammind[TeamMind AI :5000]
+  teammind --> sqlite[(SQLite + uploads)]
 ```
 
 完整部署说明见 / Full deployment guide: [docs/DEPLOY.md](docs/DEPLOY.md)
 
 ### Zeabur 公网一键部署 / Zeabur Public Deployment
 
-仓库已包含 [`zbpack.json`](zbpack.json)、[`.env.example`](.env.example) 与 [`zeabur.template.yaml`](zeabur.template.yaml)。在 [Zeabur](https://zeabur.com/zh-CN/) 导入 `FrankDengAI/TeamMind_AI` 后，配置环境变量并挂载 Volume 至 `/src/data` 即可。部署验证：
+[![Deploy on Zeabur](https://img.shields.io/badge/Deploy_on-Zeabur-7C3AED?style=for-the-badge)](https://zeabur.com/zh-CN/)
+
+仓库已包含 [`zbpack.json`](zbpack.json)、[`.env.example`](.env.example) 与 [`zeabur.template.yaml`](zeabur.template.yaml)。在 [Zeabur](https://zeabur.com/zh-CN/) 导入 `FrankDengAI/TeamMind_AI` 后，配置环境变量并挂载 Volume 至 `/src/data` 即可。
 
 ```bash
 python scripts/verify_zeabur_deploy.py --base-url https://your-app.zeabur.app
@@ -493,15 +633,23 @@ python scripts/verify_zeabur_deploy.py --base-url https://your-app.zeabur.app
 
 ## 文档 / Documentation
 
-- [部署文档 / Deployment](docs/DEPLOY.md)
-- [接口文档 / API](docs/API.md)
-- [算法文档 / Algorithms](docs/ALGORITHM.md)
-- [画像标签体系 / Profile Tags](docs/PROFILE_TAGS.md)
-- [协作学习设计 / Collaborative Learning](docs/COLLAB_LEARNING.md)
-- [项目架构与课堂流程 / Architecture Flow](docs/ARCHITECTURE_FLOW.md)
-- [测试报告 / Test Report](docs/TEST_REPORT.md)
-- [代码审查报告 / Code Review Report](docs/CODE_REVIEW_REPORT.md)
-- [多模态说明 / Multimodal Notes](docs/MULTIMODAL.md)
+<table>
+  <tr>
+    <td>📦 <a href="docs/DEPLOY.md">部署文档 / Deployment</a></td>
+    <td>🔌 <a href="docs/API.md">接口文档 / API</a></td>
+    <td>🧮 <a href="docs/ALGORITHM.md">算法文档 / Algorithms</a></td>
+  </tr>
+  <tr>
+    <td>🏷️ <a href="docs/PROFILE_TAGS.md">画像标签 / Profile Tags</a></td>
+    <td>🤝 <a href="docs/COLLAB_LEARNING.md">协作学习 / Collaborative Learning</a></td>
+    <td>🏗️ <a href="docs/ARCHITECTURE_FLOW.md">架构流程 / Architecture Flow</a></td>
+  </tr>
+  <tr>
+    <td>🧪 <a href="docs/TEST_REPORT.md">测试报告 / Test Report</a></td>
+    <td>🔍 <a href="docs/CODE_REVIEW_REPORT.md">代码审查 / Code Review</a></td>
+    <td>🖼️ <a href="docs/MULTIMODAL.md">多模态说明 / Multimodal</a></td>
+  </tr>
+</table>
 
 ---
 
@@ -540,7 +688,12 @@ This project is released under the [MIT License](LICENSE).
 ---
 
 <p align="center">
+  <br />
+  <img src="docs/readme-hero.svg" alt="TeamMind AI" width="720" />
+  <br /><br />
   <strong>组队超脑 · TeamMind AI</strong><br />
-  让组队、分工、协作和评价都有据可依。<br />
-  Make team formation, task ownership, collaboration and assessment explainable.
+  <em>让组队、分工、协作和评价都有据可依</em><br />
+  <em>Make team formation, task ownership, collaboration and assessment explainable</em>
+  <br /><br />
+  <sub>Built with Flask · Vue · SQLite · DeepSeek · MIT License</sub>
 </p>

@@ -1,0 +1,58 @@
+{
+  "dm2401": [
+    {"name": "林泽宇", "bio": "数字媒体技术 2024 级，主攻 Unity 与 Web 前端，课余参加校级游戏开发社团。", "research_interest": "交互叙事与沉浸式媒体"},
+    {"name": "Emily Zhang", "bio": "对产品与用户体验感兴趣，常用 Figma 做交互原型，希望找擅长开发的搭档一起做课程项目。", "research_interest": "交互媒体设计实践"},
+    {"name": "王雨桐", "bio": "喜欢从数据里找故事，会用 Python 和 Tableau 做可视化分析，正在修习交互媒体相关课程。", "research_interest": "数据驱动的媒体表达"},
+    {"name": "张浩然", "bio": "擅长把技术方案整理成清晰的文档和汇报材料，曾参与学院创新创业大赛路演。", "research_interest": "交互媒体设计实践"},
+    {"name": "Michael Liu", "bio": "沟通协调能力较强，习惯推进组会节奏和跨角色对接，有社团外联部经历。", "research_interest": "跨学科协作与项目管理"},
+    {"name": "陈嘉怡", "bio": "注重细节与质量，熟悉功能测试和用户体验走查，愿意承担验收与回归测试。", "research_interest": "交互产品质量保障"},
+    {"name": "Alex Wang", "bio": "全栈方向自学中，熟悉 React 与 Node.js，希望在本学期课程项目里负责核心开发。", "research_interest": "Web 交互应用开发"},
+    {"name": "刘思琪", "bio": "关注信息架构与用户流程，做过两个小程序的界面改版，喜欢和设计同学结对。", "research_interest": "产品原型与可用性"},
+    {"name": "David Zhao", "bio": "对音视频数据处理有兴趣，会用 FFmpeg 和 Python 做基础剪辑与指标分析。", "research_interest": "多媒体数据分析"},
+    {"name": "周晓雯", "bio": "新闻传播双学位选修，擅长访谈记录、文案润色和期末展示脚本撰写。", "research_interest": "媒体内容策划与表达"},
+    {"name": "Ryan Huang", "bio": "有乐队和社团活动组织经验，善于协调不同专业背景同学的分工与节奏。", "research_interest": "团队协作与活动运营"},
+    {"name": "吴俊彦", "bio": "软件测试入门，熟悉 Postman 与基础自动化脚本，做事有条理、记录完整。", "research_interest": "交互系统测试与验证"}
+  ],
+  "ai2401": [
+    {"name": "陈宇航", "bio": "人工智能 2024 级，熟悉 PyTorch 与经典机器学习流程，正在参加校内 AI 创新营。", "research_interest": "AI 产品创新实践"},
+    {"name": "Sophia Li", "bio": "关注人机交互与智能产品形态，希望把模型能力落到可演示的原型上。", "research_interest": "智能产品设计"},
+    {"name": "王子轩", "bio": "数据基础扎实，擅长特征工程与实验记录，乐于在组内分享分析思路。", "research_interest": "机器学习应用"},
+    {"name": "李思远", "bio": "习惯撰写技术文档与实验报告，表达清晰，适合承担方案说明与答辩材料。", "research_interest": "AI 产品创新实践"},
+    {"name": "James Chen", "bio": "外向务实，擅长组织讨论、跟进里程碑，有项目管理课程助教经历。", "research_interest": "AI 项目协作与管理"},
+    {"name": "赵梓涵", "bio": "重视模型效果与边界 case，熟悉基础单元测试和接口联调验收。", "research_interest": "智能系统测试"},
+    {"name": "刘博文", "bio": "后端与算法双修方向，熟悉 FastAPI 与服务部署，愿意扛核心模块开发。", "research_interest": "AI 工程化落地"},
+    {"name": "Emma Wang", "bio": "对产品需求拆解敏感，做过两个 AI 小工具的竞品调研和用户访谈。", "research_interest": "AI 产品创新实践"},
+    {"name": "黄天翊", "bio": "喜欢用数据验证假设，掌握 Pandas、sklearn 与常见可视化工具。", "research_interest": "数据智能分析"},
+    {"name": "孙晓彤", "bio": "表达能力强，擅长 PPT 结构与路演节奏，曾获得学院答辩优秀奖。", "research_interest": "技术成果展示"},
+    {"name": "Kevin Zhang", "bio": "跨专业组队经验丰富，善于协调算法、开发和设计同学的接口边界。", "research_interest": "跨学科 AI 项目"},
+    {"name": "周亦凡", "bio": "注重代码质量与 reproducibility，习惯维护测试用例和实验 checklist。", "research_interest": "AI 系统质量保障"}
+  ],
+  "se2402": [
+    {"name": "张翰文", "bio": "软件工程 2024 级，熟悉 Java Spring 与 Git 协作流程，参加过两次黑客松。", "research_interest": "软件工程综合实训"},
+    {"name": "Jessica Liu", "bio": "对产品规划与需求文档有兴趣，希望在本学期实训中承担产品角色。", "research_interest": "软件产品规划"},
+    {"name": "马一鸣", "bio": "数据库与 SQL 功底较好，擅长数据建模与报表梳理，做事踏实。", "research_interest": "业务数据分析"},
+    {"name": "杨嘉宁", "bio": "文档与汇报能力强，能把复杂技术方案翻译成非技术同学也听得懂的语言。", "research_interest": "软件工程综合实训"},
+    {"name": "Daniel Xu", "bio": "沟通协调顺畅，习惯用看板推进任务，有工作室项目组长经验。", "research_interest": "敏捷协作与交付"},
+    {"name": "何俊杰", "bio": "熟悉接口测试与 CI 基础配置，愿意承担联调后的回归与缺陷跟踪。", "research_interest": "软件质量保障"},
+    {"name": "郭思远", "bio": "全栈开发方向，Vue + Node 技术栈，希望承担核心业务模块实现。", "research_interest": "Web 系统开发"},
+    {"name": "Olivia Chen", "bio": "关注可用性与信息架构，会用 Figma 输出可交付的原型说明。", "research_interest": "软件交互设计"},
+    {"name": "徐浩然", "bio": "对日志分析与性能指标敏感，喜欢用数据定位系统瓶颈。", "research_interest": "系统可观测性"},
+    {"name": "冯雨欣", "bio": "商学院辅修，擅长商业分析与竞品梳理，适合承担市场调研部分。", "research_interest": "软件产品市场分析"},
+    {"name": "Ethan Wu", "bio": "组织能力强，能推动前后端、测试同学对齐里程碑与风险清单。", "research_interest": "软件项目协调"},
+    {"name": "郑雅琪", "bio": "测试思维清晰，熟悉 Postman 与基础自动化，记录习惯好。", "research_interest": "软件测试与验收"}
+  ],
+  "ds2301": [
+    {"name": "宋明哲", "bio": "数据科学与大数据技术 2023 级，熟悉 Python 数据栈，正在做本科毕设相关课题。", "research_interest": "数据智能项目实践"},
+    {"name": "Grace Huang", "bio": "对数据产品与可视化叙事感兴趣，希望把分析结果做成有说服力的展示。", "research_interest": "数据产品设计"},
+    {"name": "方志伟", "bio": "统计基础扎实，擅长清洗、建模与实验设计，乐于分享 notebook。", "research_interest": "预测建模与应用"},
+    {"name": "曹欣怡", "bio": "擅长撰写分析报告和答辩材料，表达条理清晰，注重图表叙事。", "research_interest": "数据智能项目实践"},
+    {"name": "Benjamin Lin", "bio": "沟通高效，能协调数据采集、建模与展示各环节的节奏与分工。", "research_interest": "数据项目协作"},
+    {"name": "谢雨桐", "bio": "重视数据质量与结果可复现，熟悉常见验证方法与误差分析。", "research_interest": "数据质量与验证"},
+    {"name": "彭浩然", "bio": "工程实现能力强，熟悉 SQL、Spark 基础与数据管道搭建。", "research_interest": "数据工程实践"},
+    {"name": "Chloe Zhao", "bio": "关注用户视角的数据洞察，做过问卷设计与用户分层分析。", "research_interest": "用户行为分析"},
+    {"name": "陆思琪", "bio": "机器学习实践多，熟悉 sklearn 与常见调参流程，实验记录完整。", "research_interest": "机器学习应用"},
+    {"name": "丁一凡", "bio": "汇报与展示能力强，能把复杂模型结果转化为决策建议。", "research_interest": "数据智能项目实践"},
+    {"name": "Noah Zhang", "bio": "跨背景组队经验丰富，善于对齐业务问题、数据方案与交付节点。", "research_interest": "数据智能协作"},
+    {"name": "金晓彤", "bio": "细致耐心，熟悉数据校验、指标核对与结果复核流程。", "research_interest": "数据分析质量保障"}
+  ]
+}

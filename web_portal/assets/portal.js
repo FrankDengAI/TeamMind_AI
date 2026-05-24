@@ -1,5 +1,35 @@
 const LANG_KEY = 'teammind_portal_lang';
-const DEFAULT_LANG = localStorage.getItem(LANG_KEY) || 'zh-CN';
+const portalStorage = {
+  getItem(key) {
+    try {
+      return window.localStorage?.getItem(key) || null;
+    } catch {
+      return null;
+    }
+  },
+  setItem(key, value) {
+    try {
+      window.localStorage?.setItem(key, value);
+    } catch {
+      // Ignore blocked storage; language falls back for the current page.
+    }
+  },
+};
+const DEFAULT_LANG = portalStorage.getItem(LANG_KEY) || 'zh-CN';
+
+const LAUNCH_ICON_TEACHER = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <rect x="4" y="4" width="7" height="7" rx="1.6" fill="#fff" fill-opacity="0.96"/>
+  <rect x="13" y="4" width="7" height="7" rx="1.6" fill="#fff" fill-opacity="0.78"/>
+  <rect x="4" y="13" width="7" height="7" rx="1.6" fill="#fff" fill-opacity="0.78"/>
+  <rect x="13" y="13" width="7" height="7" rx="1.6" fill="#fff" fill-opacity="0.96"/>
+</svg>`;
+
+const LAUNCH_ICON_STUDENT = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <circle cx="12" cy="6.5" r="2.4" fill="#fff"/>
+  <circle cx="6.5" cy="16.5" r="2.4" fill="#fff" opacity="0.92"/>
+  <circle cx="17.5" cy="16.5" r="2.4" fill="#fff" opacity="0.92"/>
+  <path d="M12 9v1.8M12 10.8 8 14.2M12 10.8l4 3.4" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+</svg>`;
 
 const resources = {
   'zh-CN': {
@@ -300,7 +330,24 @@ let settingsOpen = false;
 let lastModalTrigger = null;
 let launchTimer = null;
 
+function showPortalError(message) {
+  const root = document.getElementById('app') || document.body;
+  root.innerHTML = `
+    <main style="min-height:100vh;display:grid;place-items:center;padding:32px;background:#f8fafc;color:#0f172a;font-family:Segoe UI,Microsoft YaHei,sans-serif">
+      <section style="max-width:560px;padding:28px;border:1px solid #fee2e2;border-radius:22px;background:#fff;box-shadow:0 20px 60px rgba(15,23,42,.12)">
+        <h1 style="margin:0 0 12px;font-size:24px">页面资源加载失败</h1>
+        <p style="margin:0 0 14px;line-height:1.7;color:#475569">${message}</p>
+        <p style="margin:0;color:#64748b">请检查网络/CDN 资源后刷新页面，或使用本地启动脚本重新启动服务。</p>
+      </section>
+    </main>
+  `;
+}
+
 async function initI18n() {
+  if (!window.i18next?.init) {
+    showPortalError('i18next 国际化资源未加载，门户暂时无法初始化。');
+    return;
+  }
   await i18next.init({
     lng: DEFAULT_LANG === 'zh-Hant' ? 'zh-CN' : DEFAULT_LANG,
     fallbackLng: 'zh-CN',
@@ -316,7 +363,7 @@ async function initI18n() {
 
 function t(key) {
   const raw = i18next.t(key);
-  const lang = localStorage.getItem(LANG_KEY) || DEFAULT_LANG;
+  const lang = portalStorage.getItem(LANG_KEY) || DEFAULT_LANG;
   if (lang === 'zh-Hant' && openCCConverter) return openCCConverter(raw);
   return raw;
 }
@@ -326,7 +373,7 @@ function applyPageTitle() {
 }
 
 function setLang(lang) {
-  localStorage.setItem(LANG_KEY, lang);
+  portalStorage.setItem(LANG_KEY, lang);
   i18next.changeLanguage(lang === 'zh-Hant' ? 'zh-CN' : lang).then(() => {
     applyPageTitle();
     render();
@@ -334,7 +381,7 @@ function setLang(lang) {
 }
 
 function currentLang() {
-  return localStorage.getItem(LANG_KEY) || DEFAULT_LANG;
+  return portalStorage.getItem(LANG_KEY) || DEFAULT_LANG;
 }
 
 function openRoleModal(mode) {
@@ -375,7 +422,7 @@ function openLaunchOverlay(role, url) {
       </div>
       <div class="launch-card">
         <div class="launch-mark">
-          <span>${role === 'teacher' ? '?' : '?'}</span>
+          <span>${role === 'teacher' ? LAUNCH_ICON_TEACHER : LAUNCH_ICON_STUDENT}</span>
         </div>
         <p class="launch-kicker">${t('brandKicker')}</p>
         <h2>${t(role === 'teacher' ? 'launchTeacherTitle' : 'launchStudentTitle')}</h2>

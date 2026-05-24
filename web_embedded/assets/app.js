@@ -1,12 +1,51 @@
 /**
  * 组队超脑（TeamMind AI）用户端 — 学员使用（默认由 5000 /student/ 托管）
  */
-const { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } = Vue
+const TeamMindRuntime = (() => {
+  const getStorage = () => {
+    try {
+      return window.localStorage || (typeof localStorage !== 'undefined' ? localStorage : null)
+    } catch {
+      return null
+    }
+  }
+  const storage = {
+    getItem(key) {
+      try { return getStorage()?.getItem(key) || null } catch { return null }
+    },
+    setItem(key, value) {
+      try { getStorage()?.setItem(key, value) } catch {}
+    },
+    removeItem(key) {
+      try { getStorage()?.removeItem(key) } catch {}
+    },
+  }
+  function showBootError(message) {
+    if (typeof document === 'undefined') return
+    const root = document.getElementById('app') || document.body
+    root.innerHTML = `
+      <main style="min-height:100vh;display:grid;place-items:center;padding:32px;background:#f8fafc;color:#0f172a;font-family:Segoe UI,Microsoft YaHei,sans-serif">
+        <section style="max-width:560px;padding:28px;border:1px solid #fee2e2;border-radius:22px;background:#fff;box-shadow:0 20px 60px rgba(15,23,42,.12)">
+          <h1 style="margin:0 0 12px;font-size:24px">学员端资源加载失败</h1>
+          <p style="margin:0 0 14px;line-height:1.7;color:#475569">${message}</p>
+          <p style="margin:0;color:#64748b">请检查网络/CDN 资源后刷新页面，或重新运行启动脚本。</p>
+        </section>
+      </main>
+    `
+  }
+  return { storage, showBootError }
+})()
+const VueRuntime = window.Vue || (typeof Vue !== 'undefined' ? Vue : {})
+const { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } = VueRuntime
+if (typeof document !== 'undefined' && (!createApp || !window.axios || !window.ElementPlus)) {
+  TeamMindRuntime.showBootError('Vue、Element Plus 或 axios 未能加载，应用无法启动。')
+  throw new Error('TeamMind student runtime dependency missing')
+}
 
 const API_BASE = window.TEAMMIND_API_BASE || 'http://127.0.0.1:5000/api'
 const ADMIN_PORTAL_URL = window.TEAMMIND_ADMIN_URL || 'http://127.0.0.1:5000/'
 const APP_LANG_KEY = 'teammind_app_lang'
-const DEFAULT_APP_LANG = localStorage.getItem(APP_LANG_KEY) || localStorage.getItem('teammind_portal_lang') || 'zh-CN'
+const DEFAULT_APP_LANG = TeamMindRuntime.storage.getItem(APP_LANG_KEY) || TeamMindRuntime.storage.getItem('teammind_portal_lang') || 'zh-CN'
 const LANGUAGE_OPTIONS = [
   { code: 'zh-CN', label: '简体中文' },
   { code: 'zh-Hant', label: '繁體中文' },
@@ -146,6 +185,7 @@ Object.assign(STUDENT_I18N, {
     profileCard: '個人資料',
     saveProfile: '保存資料',
     nav: {
+      classes: ['我的班級', '查看已加入班級，申請加入或退出課程班級。'],
       profile: ['能力畫像', '先選擇與你相關的標籤，也可以補充一段簡單介紹。'],
       team: ['我的團隊', '查看所在小組、組內分工和隊友任務進度。'],
       tasks: ['我的任務', '查看自己的任務、截止時間，並更新完成進度。'],
@@ -161,6 +201,7 @@ Object.assign(STUDENT_I18N, {
     profileCard: 'プロフィール',
     saveProfile: '保存',
     nav: {
+      classes: ['マイクラス', '参加済みクラスを確認し、参加・退出を申請します。'],
       profile: ['能力プロフィール', '関連タグを選び、短い自己紹介を追加できます。'],
       team: ['マイチーム', 'チーム、役割、メンバー進捗を確認します。'],
       tasks: ['マイタスク', 'タスク、期限、進捗を確認します。'],
@@ -356,6 +397,14 @@ Object.assign(STUDENT_TEXT_I18N.en, {
   已选: 'Selected',
   '② 自由描述': '2. Free Description',
   '可选。DeepSeek 会结合主动标签分析自由文本；不填写时仅依据已选标签生成画像。': 'Optional. DeepSeek analyzes free text with active tags; if empty, the profile is generated from selected tags.',
+  '③ 简历上传': '3. Resume Upload',
+  '上传 PDF / DOC / DOCX 简历，系统会提取经历并融合已选标签生成画像。': 'Upload a PDF / DOC / DOCX resume. The system extracts your experience and combines it with selected tags.',
+  '已选择：': 'Selected: ',
+  选择简历文件: 'Choose Resume File',
+  '支持 PDF、DOC、DOCX；若解析失败，可回到自由描述手动补充。': 'PDF, DOC and DOCX are supported. If parsing fails, use free text to add details manually.',
+  解析简历并生成画像: 'Parse Resume and Generate Profile',
+  请先选择简历文件: 'Please choose a resume file first',
+  简历画像已生成: 'Resume profile generated',
   '我的协作画像': 'My Collaboration Profile',
   '根据你的主动标签、学习互动和任务表现生成，仅展示正向角色建议': 'Generated from active tags, learning interactions and task performance; only positive role suggestions are shown.',
   多角色方向: 'Multiple Role Directions',
@@ -369,6 +418,15 @@ Object.assign(STUDENT_TEXT_I18N.en, {
   创建任务: 'Create Task',
   学习社区: 'Learning Community',
   发布学习动态: 'Post Learning Update',
+  评论: 'Comments',
+  收起评论: 'Hide Comments',
+  查看评论: 'View Comments',
+  同学: 'Classmate',
+  '暂无评论，欢迎补充观点。': 'No comments yet. Add your thoughts.',
+  '写下你的评论，补充经验或组队想法': 'Write a comment, share experience or teaming ideas',
+  提交评论: 'Submit Comment',
+  评论不能为空: 'Comment cannot be empty',
+  评论已发布: 'Comment posted',
   会话列表: 'Conversations',
   聊天: 'Chat',
   发送: 'Send',
@@ -457,11 +515,177 @@ Object.assign(STUDENT_TEXT_I18N.en, {
   收藏: 'Favorite',
   发消息: 'Message',
   同学: 'Classmate',
+  任务驱动: 'Task-driven',
+  '（我）': ' (Me)',
+  用户: 'User',
+  人: 'members',
+  未命名活动: 'Untitled Activity',
+  优势明显: 'Strong advantage',
+  基础良好: 'Solid foundation',
+  可继续提升: 'Room to grow',
+  建议补强: 'Needs strengthening',
+  知识方向: 'Knowledge Focus',
+  擅长任务: 'Strong Tasks',
+  协作方式: 'Collaboration Style',
+  课程主题: 'Course topic',
+  实践执行: 'Hands-on execution',
+  课程学习: 'Course learning',
+  '资料整理、实践执行、成果表达': 'Documentation, execution and presentation',
+  '沟通配合、稳定推进': 'Communication and steady progress',
+  '适合在团队中围绕「%k%」参与方案推进，可优先尝试「%r%」等角色方向，并结合「%s%」完成具体任务。': 'In a team, focus on "%k%" for planning; try roles like "%r%" and apply "%s%" to concrete tasks.',
+  '你在「%t%」方向有可用于组队匹配的基础。': 'You have team-matching foundations in "%t%".',
+  '适合优先参与「%t%」等任务。': 'Well suited for tasks such as "%t%".',
+  '团队协作中可以发挥「%t%」相关特点。': 'In teamwork you can leverage strengths in "%t%".',
+  '建议你在后续项目中优先尝试「%r%」相关任务，也可以根据小组需要灵活切换；继续通过社区分享、组内沟通和任务提交完善自己的学习画像。': 'Try "%r%" tasks in upcoming projects and adapt as the team needs; keep improving your profile through community posts, team communication and task submissions.',
+  知: 'K',
+  技: 'S',
+  协: 'C',
+  标: 'T',
+  '正在读取主动标签...': 'Reading active tags...',
+  '正在分析自由描述与学习行为...': 'Analyzing free text and learning behavior...',
+  '正在融合知识、技能、协作特征...': 'Combining knowledge, skills and collaboration traits...',
+  '正在生成适合的角色方向...': 'Generating suitable role directions...',
+  '正在整理给你的建议...': 'Preparing suggestions for you...',
+  '计算完成，正在刷新画像...': 'Calculation complete, refreshing profile...',
+  '请按老师要求参与本次组队活动。': 'Follow your teacher\'s instructions for this team activity.',
+  角色待定: 'Role TBD',
+  '个：': ':',
+  '候选匹配依据：': 'Candidate matching basis:',
+  '分析：': 'Analysis:',
+  同意: 'Approve',
+  拒绝: 'Reject',
+  确定: 'OK',
+  取消: 'Cancel',
+  确认操作: 'Confirm',
+  头像: 'Avatar',
+  '可选：例如计算机专业，熟悉 Python 与前端...': 'Optional: e.g. CS major, familiar with Python and frontend...',
+  '如：技术开发、文档汇报、协调对接': 'e.g. development, documentation, coordination',
+  '如：愿意做原型；不适合后端；需要同伴协助数据分析': 'e.g. willing to prototype; not suited for backend; need help with data analysis',
+  '如果不接受当前安排，请说明原因；接受时也可以写给老师和队友的备注。': 'If you do not accept the arrangement, explain why; you may also leave notes for the teacher and teammates when accepting.',
+  你在: 'Your role in',
+  '本组组队依据：': 'Team grouping basis:',
+  '暂无小组任务。老师分配或同学创建后会显示。': 'No team tasks yet. They appear after teacher assignment or peer creation.',
+  '如：整理用户访谈问题、实现登录页原型、完成数据清洗': 'e.g. interview questions, login prototype, data cleaning',
+  '简单说明你准备做什么、产出是什么': 'Briefly describe what you will do and deliver',
+  '例如：我擅长前端，想负责页面实现；需要队友提供接口字段': 'e.g. I am good at frontend and want to build pages; need API fields from teammates',
+  '系统按你的能力与偏好分配子任务。请更新完成百分比；逾期或滞后会在上方预警，队友在团队页可见你的进度。': 'Subtasks are assigned by ability and preference. Update completion %; overdue items alert above and teammates see your progress on the team page.',
+  '暂无任务。加入小组并由老师分配任务后显示。': 'No tasks yet. Shown after joining a group and teacher assignment.',
+  '暂无小组任务。': 'No team tasks yet.',
+  '分享项目经验、兴趣方向、学习资料或组队想法；点赞、收藏、评论会形成你的被动画像标签。': 'Share project experience, interests, resources or teaming ideas; likes, favorites and comments build passive profile tags.',
+  '写下你感兴趣的方向、正在做的项目、想寻找的队友...': 'Write interests, current projects, teammates you are looking for...',
+  '暂无会话，可在学习社区中给同学发消息': 'No conversations yet. Message classmates from the community.',
+  输入消息: 'Type a message',
+  '学员账号：': 'Student account:',
+  未填写: 'Not set',
+  '头像支持图片链接；留空时会自动使用姓名首字作为头像。': 'Avatar accepts an image URL; if empty, the first letter of your name is used.',
+  个人标题: 'Headline',
+  '如：数据分析 / 智慧教育方向研究生': 'e.g. Data analysis / smart education graduate student',
+  '写一句你的项目兴趣、擅长方向或希望承担的角色': 'One line about project interests, strengths or preferred role',
+  '如：学习分析、智能教育、大模型应用': 'e.g. learning analytics, smart education, LLM applications',
+  '如：每周 6-8 小时，周三/周末可开会': 'e.g. 6-8 hours/week, meetings Wed/weekends',
+  'Aurora 极光': 'Aurora',
+  'Ocean 海蓝': 'Ocean',
+  'Sunrise 晨光': 'Sunrise',
+  '新密码至少 6 位，保存后下次登录生效。': 'New password must be at least 6 characters; takes effect on next login.',
+  正在计算适合你的角色方向: 'Calculating suitable role directions for you',
+  '系统正在综合主动标签、自由描述、被动标签与任务表现，稍等片刻。': 'Combining active tags, free text, passive tags and task performance. Please wait.',
+  '建议分为 %n% 组，人数分配为 %s%': 'Suggested %n% groups with sizes %s%',
+  暂无可分组学生: 'No students available for grouping',
+  '系统建议分为 %n% 组，人数为 %s%。': 'System suggests %n% groups with sizes %s%.',
+  '最大组与最小组人数差为 %n%，可降低组间工作量不均。': 'Max/min group size gap is %n%; consider reducing workload imbalance.',
+  '默认参考每组 %n% 人，符合 10-20 人班级的小组项目组织方式。': 'Default reference: %n% per group, suitable for 10-20 student class projects.',
+  '当前班级人数适合进行均匀项目分组。': 'Current class size suits balanced project grouping.',
+  '当前暂无可分组学生。': 'No students available for grouping currently.',
+  '人数较少的小组需要老师关注任务拆分，避免承担同等任务量。': 'Smaller groups need task splitting to avoid equal workload burden.',
+  '已为活动“%t%”生成 %n% 个候选小组，平均均衡度 %s%。': 'Generated %n% candidate groups for activity "%t%" with average balance %s%.',
+  '分析：': 'Analysis: ',
+  未命名活动: 'Untitled Activity',
 })
+
+STUDENT_TEXT_I18N.ja = {
+  ...(STUDENT_TEXT_I18N.ja || {}),
+  '建议分为 %n% 组，人数分配为 %s%': '%n% グループ、人数配分 %s% を推奨',
+  暂无可分组学生: 'グループ分けできる学生がいません',
+  '系统建议分为 %n% 组，人数为 %s%。': 'システムは %n% グループ、人数 %s% を推奨しています。',
+  '最大组与最小组人数差为 %n%，可降低组间工作量不均。': '最大グループと最小グループの人数差は %n% です。作業量の偏りを抑えられます。',
+  '默认参考每组 %n% 人，符合 10-20 人班级的小组项目组织方式。': '標準では各グループ %n% 人を参考にし、10-20 人規模のクラスプロジェクトに適しています。',
+  '当前班级人数适合进行均匀项目分组。': '現在のクラス人数は均等なプロジェクト分けに適しています。',
+  '当前暂无可分组学生。': '現在グループ分けできる学生がいません。',
+  '人数较少的小组需要老师关注任务拆分，避免承担同等任务量。': '人数の少ないグループは、同じ作業量にならないよう教師がタスク分割を確認してください。',
+  '已为活动“%t%”生成 %n% 个候选小组，平均均衡度 %s%。': '活動「%t%」に対して %n% 個の候補グループを生成しました。平均バランスは %s% です。',
+  '分析：': '分析：',
+}
 
 ;['zh-Hant', 'ja', 'ko', 'fr', 'de', 'es'].forEach((lang) => {
   STUDENT_TEXT_I18N[lang] = { ...STUDENT_TEXT_I18N.en, ...(STUDENT_TEXT_I18N[lang] || {}) }
 })
+
+const STUDENT_DYNAMIC_I18N = {
+  'zh-CN': {
+    status: {
+      active: '已加入', pending: '待审批', approved: '已通过', rejected: '已拒绝',
+      draft: '草稿', collecting: '收集中', grouping: '分组中', confirmation: '确认中',
+      confirming: '确认中', preview: '预览中', tasking: '任务中', adjusting: '调整中',
+      published: '已发布', locked: '已锁定', completed: '已完成', joined: '已参与',
+    },
+  },
+  'zh-Hant': {
+    status: {
+      active: '已加入', pending: '待審批', approved: '已通過', rejected: '已拒絕',
+      draft: '草稿', collecting: '收集中', grouping: '分組中', confirmation: '確認中',
+      confirming: '確認中', preview: '預覽中', tasking: '任務中', adjusting: '調整中',
+      published: '已發布', locked: '已鎖定', completed: '已完成', joined: '已參與',
+    },
+  },
+  en: {
+    status: {
+      active: 'Active', pending: 'Pending', approved: 'Approved', rejected: 'Rejected',
+      draft: 'Draft', collecting: 'Collecting', grouping: 'Grouping', confirmation: 'Confirming',
+      confirming: 'Confirming', preview: 'Preview', tasking: 'Tasking', adjusting: 'Adjusting',
+      published: 'Published', locked: 'Locked', completed: 'Completed', joined: 'Joined',
+    },
+  },
+  ja: {
+    status: {
+      active: '参加中', pending: '保留中', approved: '承認済み', rejected: '却下済み',
+      draft: '下書き', collecting: '収集中', grouping: '編成中', confirmation: '確認中',
+      confirming: '確認中', preview: 'プレビュー', tasking: 'タスク中', adjusting: '調整中',
+      published: '公開済み', locked: 'ロック済み', completed: '完了', joined: '参加済み',
+    },
+  },
+  ko: {
+    status: {
+      active: '활성', pending: '대기 중', approved: '승인됨', rejected: '거절됨',
+      draft: '초안', collecting: '수집 중', grouping: '편성 중', confirmation: '확인 중',
+      confirming: '확인 중', preview: '미리보기', tasking: '작업 중', adjusting: '조정 중',
+      published: '게시됨', locked: '잠김', completed: '완료', joined: '참여함',
+    },
+  },
+  fr: {
+    status: {
+      active: 'Actif', pending: 'En attente', approved: 'Approuvé', rejected: 'Refusé',
+      draft: 'Brouillon', collecting: 'Collecte', grouping: 'Regroupement', confirmation: 'Confirmation',
+      confirming: 'Confirmation', preview: 'Aperçu', tasking: 'Tâches', adjusting: 'Ajustement',
+      published: 'Publié', locked: 'Verrouillé', completed: 'Terminé', joined: 'Inscrit',
+    },
+  },
+  de: {
+    status: {
+      active: 'Aktiv', pending: 'Ausstehend', approved: 'Genehmigt', rejected: 'Abgelehnt',
+      draft: 'Entwurf', collecting: 'Sammeln', grouping: 'Gruppierung', confirmation: 'Bestätigung',
+      confirming: 'Bestätigung', preview: 'Vorschau', tasking: 'Aufgabenphase', adjusting: 'Anpassung',
+      published: 'Veröffentlicht', locked: 'Gesperrt', completed: 'Abgeschlossen', joined: 'Teilgenommen',
+    },
+  },
+  es: {
+    status: {
+      active: 'Activo', pending: 'Pendiente', approved: 'Aprobado', rejected: 'Rechazado',
+      draft: 'Borrador', collecting: 'Recopilando', grouping: 'Agrupando', confirmation: 'Confirmación',
+      confirming: 'Confirmando', preview: 'Vista previa', tasking: 'Tareas', adjusting: 'Ajuste',
+      published: 'Publicado', locked: 'Bloqueado', completed: 'Completado', joined: 'Inscrito',
+    },
+  },
+}
 
 function lookupTextTranslation(original, target) {
   if (!target) return original
@@ -473,39 +697,12 @@ function lookupTextTranslation(original, target) {
   return original
 }
 
-function translateVisibleText(root, lang, dictionaries) {
-  if (!root) return
-  const target = dictionaries[lang] || (lang === 'zh-CN' ? null : dictionaries.en)
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      const parent = node.parentElement
-      if (!parent || ['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'CODE', 'PRE'].includes(parent.tagName)) {
-        return NodeFilter.FILTER_REJECT
-      }
-      return node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP
-    },
-  })
-  const textNodes = []
-  while (walker.nextNode()) textNodes.push(walker.currentNode)
-  textNodes.forEach((node) => {
-    if (!node.__tfOriginalText) node.__tfOriginalText = node.textContent.trim()
-    const original = node.__tfOriginalText
-    const nextText = lang === 'zh-CN' ? original : lookupTextTranslation(original, target)
-    if (node.textContent.trim() !== nextText) {
-      node.textContent = node.textContent.replace(node.textContent.trim(), nextText)
-    }
-  })
-  root.querySelectorAll('[placeholder], [title], [aria-label]').forEach((el) => {
-    ;['placeholder', 'title', 'aria-label'].forEach((attr) => {
-      const value = el.getAttribute(attr)
-      if (!value) return
-      const key = `tfOriginal${attr.replace(/-./g, (m) => m[1].toUpperCase())}`
-      if (!el.dataset[key]) el.dataset[key] = value
-      const original = el.dataset[key]
-      const nextValue = lang === 'zh-CN' ? original : lookupTextTranslation(original, target)
-      if (el.getAttribute(attr) !== nextValue) el.setAttribute(attr, nextValue)
-    })
-  })
+let studentOpenCCConverter = null
+function getStudentOpenCC() {
+  if (studentOpenCCConverter === null && window.TeamMindI18n) {
+    studentOpenCCConverter = window.TeamMindI18n.initOpenCC() || false
+  }
+  return studentOpenCCConverter || null
 }
 
 const FALLBACK_TAG_CATALOG = {
@@ -542,8 +739,14 @@ const FALLBACK_TAG_CATALOG = {
 }
 
 const http = axios.create({ baseURL: API_BASE, timeout: 30000 })
+
+/** setup 外工具函数使用的翻译器（setup 内会赋值） */
+let studentUiT = (key) => key
+let studentGetLang = () => 'zh-CN'
+let studentGetOpenCCFn = () => null
+
 http.interceptors.request.use((cfg) => {
-  const t = localStorage.getItem('tf_token')
+  const t = TeamMindRuntime.storage.getItem('tf_token')
   if (t) cfg.headers.Authorization = `Bearer ${t}`
   return cfg
 })
@@ -562,8 +765,8 @@ http.interceptors.response.use(
       ElementPlus?.ElMessage?.error(err.response?.data?.error || err.message || '请求失败')
     }
     if (isStudentAuthFailure(err)) {
-      localStorage.removeItem('tf_token')
-      localStorage.removeItem('tf_user')
+      TeamMindRuntime.storage.removeItem('tf_token')
+      TeamMindRuntime.storage.removeItem('tf_user')
       window.dispatchEvent(new CustomEvent('teammind-auth-expired'))
     }
     return Promise.reject(err)
@@ -572,19 +775,24 @@ http.interceptors.response.use(
 
 function safeJsonStorage(key, fallback = null) {
   try {
-    return JSON.parse(localStorage.getItem(key) || 'null') || fallback
+    return JSON.parse(TeamMindRuntime.storage.getItem(key) || 'null') || fallback
   } catch {
-    localStorage.removeItem(key)
+    TeamMindRuntime.storage.removeItem(key)
     return fallback
   }
 }
 
-function studentConfirm(message, title = '确认操作') {
+function studentConfirm(message, title) {
   const box = ElementPlus.ElMessageBox || ElementPlus.MessageBox
+  const confirmTitle = title || studentUiT('确认操作')
   if (box?.confirm) {
-    return box.confirm(message, title, { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' })
+    return box.confirm(message, confirmTitle, {
+      type: 'warning',
+      confirmButtonText: studentUiT('确定'),
+      cancelButtonText: studentUiT('取消'),
+    })
   }
-  return window.confirm(`${title}\n\n${message}`) ? Promise.resolve() : Promise.reject('cancel')
+  return window.confirm(`${confirmTitle}\n\n${message}`) ? Promise.resolve() : Promise.reject('cancel')
 }
 
 function rejectAdminAccount(userData) {
@@ -608,10 +816,10 @@ function scoreStyle(v, color) {
 
 function scoreLevel(v) {
   const n = Number(v) || 0
-  if (n >= 8) return '优势明显'
-  if (n >= 6) return '基础良好'
-  if (n >= 4) return '可继续提升'
-  return '建议补强'
+  if (n >= 8) return studentUiT('优势明显')
+  if (n >= 6) return studentUiT('基础良好')
+  if (n >= 4) return studentUiT('可继续提升')
+  return studentUiT('建议补强')
 }
 
 function userInitial(name) {
@@ -624,8 +832,17 @@ function userAvatar(u) {
 
 function activityDisplayTitle(activity) {
   if (!activity) return ''
-  const className = activity.classroom?.name || '当前班级'
-  const title = activity.title || '未命名活动'
+  const rawTitle = activity.title || ''
+  if (window.TeamMindI18n?.translateDemoText) {
+    if (rawTitle) {
+      return window.TeamMindI18n.translateDemoText(rawTitle, studentUiT, studentGetLang(), studentGetOpenCCFn())
+    }
+    const className = activity.classroom?.name || studentUiT('当前班级')
+    const title = studentUiT('未命名活动')
+    return window.TeamMindI18n.translateDemoText(`${className}｜${title}`, studentUiT, studentGetLang(), studentGetOpenCCFn())
+  }
+  const className = activity.classroom?.name || studentUiT('当前班级')
+  const title = activity.title || studentUiT('未命名活动')
   return title.startsWith(`${className}｜`) ? title : `${className}｜${title}`
 }
 
@@ -712,34 +929,38 @@ function roleTitle(profile) {
 
 function roleSummary(profile) {
   const roles = roleCandidates(profile).slice(0, 3).map((item) => item.name)
-  const skills = phraseOrFallback(tagNames(profile, 'skill', 3), '实践执行')
-  const knowledge = phraseOrFallback(tagNames(profile, 'knowledge', 2), profile?.field || '课程主题')
-  return `适合在团队中围绕「${knowledge}」参与方案推进，可优先尝试「${roles.join('、')}」等角色方向，并结合「${skills}」完成具体任务。`
+  const skills = phraseOrFallback(tagNames(profile, 'skill', 3), studentUiT('实践执行'))
+  const knowledge = phraseOrFallback(tagNames(profile, 'knowledge', 2), profile?.field || studentUiT('课程主题'))
+  const tpl = studentUiT('适合在团队中围绕「%k%」参与方案推进，可优先尝试「%r%」等角色方向，并结合「%s%」完成具体任务。')
+  return tpl.replace('%k%', knowledge).replace('%r%', roles.join('、')).replace('%s%', skills)
 }
 
 function positiveInsights(profile) {
+  const knowledge = phraseOrFallback(tagNames(profile, 'knowledge', 4), profile?.field || studentUiT('课程学习'))
+  const skills = phraseOrFallback(tagNames(profile, 'skill', 4), studentUiT('资料整理、实践执行、成果表达'))
+  const collab = phraseOrFallback(tagNames(profile, 'collab', 4), studentUiT('沟通配合、稳定推进'))
   return [
     {
       icon: '📚',
-      title: '知识方向',
-      text: `你在「${phraseOrFallback(tagNames(profile, 'knowledge', 4), profile?.field || '课程学习')}」方向有可用于组队匹配的基础。`,
+      title: studentUiT('知识方向'),
+      text: studentUiT('你在「%t%」方向有可用于组队匹配的基础。').replace('%t%', knowledge),
     },
     {
       icon: '🛠️',
-      title: '擅长任务',
-      text: `适合优先参与「${phraseOrFallback(tagNames(profile, 'skill', 4), '资料整理、实践执行、成果表达')}」等任务。`,
+      title: studentUiT('擅长任务'),
+      text: studentUiT('适合优先参与「%t%」等任务。').replace('%t%', skills),
     },
     {
       icon: '🤝',
-      title: '协作方式',
-      text: `团队协作中可以发挥「${phraseOrFallback(tagNames(profile, 'collab', 4), '沟通配合、稳定推进')}」相关特点。`,
+      title: studentUiT('协作方式'),
+      text: studentUiT('团队协作中可以发挥「%t%」相关特点。').replace('%t%', collab),
     },
   ]
 }
 
 function profileSuggestion(profile) {
   const roles = roleCandidates(profile).slice(0, 3).map((item) => item.name).join('、')
-  return `建议你在后续项目中优先尝试「${roles}」相关任务，也可以根据小组需要灵活切换；继续通过社区分享、组内沟通和任务提交完善自己的学习画像。`
+  return studentUiT('建议你在后续项目中优先尝试「%r%」相关任务，也可以根据小组需要灵活切换；继续通过社区分享、组内沟通和任务提交完善自己的学习画像。').replace('%r%', roles)
 }
 
 function tagDimensionClass(tag, fallback = 'skill') {
@@ -748,7 +969,7 @@ function tagDimensionClass(tag, fallback = 'skill') {
 
 function tagIcon(tag, fallback = 'skill') {
   const dim = tag?.dimension || fallback
-  return { knowledge: '知', skill: '技', collab: '协' }[dim] || '标'
+  return { knowledge: studentUiT('知'), skill: studentUiT('技'), collab: studentUiT('协') }[dim] || studentUiT('标')
 }
 
 function buildAccountForm(u = {}) {
@@ -769,7 +990,7 @@ const App = {
   setup() {
     const page = ref('login')
     const user = ref(safeJsonStorage('tf_user'))
-    const token = ref(localStorage.getItem('tf_token') || '')
+    const token = ref(TeamMindRuntime.storage.getItem('tf_token') || '')
     const loading = ref(false)
     const tab = ref('login')
     const loginForm = ref({ account: '', password: '' })
@@ -781,12 +1002,15 @@ const App = {
     const activeTags = ref([])
     const customTag = ref('')
     const profileTab = ref('tags')
+    const resumeFile = ref(null)
     const calculating = ref(false)
     const calculateProgress = ref(0)
-    const calculateText = ref('正在准备画像计算...')
+    const calculateText = ref('')
     const communityFeed = ref([])
     const postForm = ref({ title: '', content: '', tags: [], is_anonymous: false })
     const postMedia = ref([])
+    const commentInputs = ref({})
+    const expandedComments = ref({})
     const conversations = ref([])
     const messages = ref([])
     const chatTargetId = ref(null)
@@ -830,9 +1054,57 @@ const App = {
     let calcStartedAt = 0
 
     const isLoggedIn = computed(() => !!token.value && user.value?.role === 'user')
-    const t = (key) => STUDENT_I18N[language.value]?.[key] || STUDENT_I18N['zh-CN'][key] || key
+    const t = window.TeamMindI18n
+      ? window.TeamMindI18n.createTranslator({
+          structuredI18n: STUDENT_I18N,
+          textI18n: STUDENT_TEXT_I18N,
+          getLang: () => language.value,
+          getOpenCC: getStudentOpenCC,
+        })
+      : (key) => STUDENT_I18N[language.value]?.[key] || STUDENT_I18N['zh-CN'][key] || key
+    studentUiT = t
+    studentGetLang = () => language.value
+    studentGetOpenCCFn = getStudentOpenCC
+    const displayDemoText = (text) => {
+      void language.value
+      if (text == null || text === '') return ''
+      return window.TeamMindI18n?.translateDemoText(String(text), t, language.value, getStudentOpenCC()) || String(text)
+    }
+    const formatGroupingAdviceText = (advice) => {
+      void language.value
+      if (!advice) return ''
+      return window.TeamMindI18n?.formatGroupingAdvice(advice, t) || ''
+    }
+    const formatInsightText = (text) => {
+      void language.value
+      if (text == null || text === '') return ''
+      return window.TeamMindI18n?.translateBackendInsight(String(text), t, language.value, getStudentOpenCC()) || String(text)
+    }
+    const studentDynamicPack = computed(() => STUDENT_DYNAMIC_I18N[language.value] || STUDENT_DYNAMIC_I18N.en)
+    const formatActivityStatus = (status) => {
+      void language.value
+      if (status == null || status === '') return '—'
+      const normalized = window.TeamMindI18n?.normalizeActivityStatus
+        ? window.TeamMindI18n.normalizeActivityStatus(status)
+        : status
+      return studentDynamicPack.value.status?.[normalized] || studentDynamicPack.value.status?.[status] || String(status)
+    }
+    const localizedRoleSummary = computed(() => {
+      void language.value
+      return roleSummary(profile.value)
+    })
+    const localizedPositiveInsights = computed(() => {
+      void language.value
+      return positiveInsights(profile.value)
+    })
+    const localizedProfileSuggestion = computed(() => {
+      void language.value
+      return profileSuggestion(profile.value)
+    })
     const navItems = computed(() => NAV_ITEMS.map((item) => {
-      const translated = STUDENT_I18N[language.value]?.nav?.[item.key] || STUDENT_I18N['zh-CN'].nav[item.key]
+      const translated = STUDENT_I18N[language.value]?.nav?.[item.key]
+        || STUDENT_I18N.en?.nav?.[item.key]
+        || STUDENT_I18N['zh-CN'].nav[item.key]
       return { ...item, label: translated?.[0] || item.label, desc: translated?.[1] || item.desc }
     }))
     const currentNav = computed(() => {
@@ -870,8 +1142,8 @@ const App = {
       token.value = data.token
       user.value = data.user
       accountForm.value = buildAccountForm(data.user)
-      localStorage.setItem('tf_token', data.token)
-      localStorage.setItem('tf_user', JSON.stringify(data.user))
+      TeamMindRuntime.storage.setItem('tf_token', data.token)
+      TeamMindRuntime.storage.setItem('tf_user', JSON.stringify(data.user))
       page.value = 'profile'
       window.removeEventListener('hashchange', onHashChange)
       window.addEventListener('hashchange', onHashChange)
@@ -883,8 +1155,8 @@ const App = {
       if (user.value?.role === 'admin') {
         token.value = ''
         user.value = null
-        localStorage.removeItem('tf_token')
-        localStorage.removeItem('tf_user')
+        TeamMindRuntime.storage.removeItem('tf_token')
+        TeamMindRuntime.storage.removeItem('tf_user')
         page.value = 'login'
       }
     }
@@ -924,8 +1196,8 @@ const App = {
       stopCalcProgress()
       token.value = ''
       user.value = null
-      localStorage.removeItem('tf_token')
-      localStorage.removeItem('tf_user')
+      TeamMindRuntime.storage.removeItem('tf_token')
+      TeamMindRuntime.storage.removeItem('tf_user')
       page.value = 'login'
       if (window.location.hash) window.location.hash = ''
       updateDocumentTitle()
@@ -944,7 +1216,7 @@ const App = {
       const { data } = await http.get('/auth/me')
       user.value = data
       accountForm.value = buildAccountForm(data)
-      localStorage.setItem('tf_user', JSON.stringify(data))
+      TeamMindRuntime.storage.setItem('tf_user', JSON.stringify(data))
     }
 
     async function saveAccount() {
@@ -953,7 +1225,7 @@ const App = {
         const { data } = await http.put('/auth/me', accountForm.value)
         user.value = data
         accountForm.value = buildAccountForm(data)
-        localStorage.setItem('tf_user', JSON.stringify(data))
+        TeamMindRuntime.storage.setItem('tf_user', JSON.stringify(data))
         ElementPlus.ElMessage.success('个人资料已保存')
       } finally { loading.value = false }
     }
@@ -985,11 +1257,11 @@ const App = {
       calcStartedAt = Date.now()
       calculateProgress.value = 8
       const steps = [
-        '正在读取主动标签...',
-        '正在分析自由描述与学习行为...',
-        '正在融合知识、技能、协作特征...',
-        '正在生成适合的角色方向...',
-        '正在整理给你的建议...',
+        t('正在读取主动标签...'),
+        t('正在分析自由描述与学习行为...'),
+        t('正在融合知识、技能、协作特征...'),
+        t('正在生成适合的角色方向...'),
+        t('正在整理给你的建议...'),
       ]
       let idx = 0
       calculateText.value = steps[idx]
@@ -1001,7 +1273,7 @@ const App = {
     }
 
     function finishCalcProgress() {
-      calculateText.value = '计算完成，正在刷新画像...'
+      calculateText.value = t('计算完成，正在刷新画像...')
       calculateProgress.value = 100
       const wait = Math.max(500, 1600 - (Date.now() - calcStartedAt))
       setTimeout(() => {
@@ -1097,6 +1369,30 @@ const App = {
       } finally { loading.value = false }
     }
 
+    function onResumeFile(e) {
+      resumeFile.value = (e.target.files || [])[0] || null
+    }
+
+    async function parseResume() {
+      if (!resumeFile.value) return ElementPlus.ElMessage.warning(t('请先选择简历文件'))
+      const fd = new FormData()
+      fd.append('resume_file', resumeFile.value)
+      fd.append('active_tags', JSON.stringify(activeTags.value))
+      loading.value = true
+      startCalcProgress()
+      try {
+        const { data } = await http.post('/profile/resume', fd)
+        profile.value = data.profile
+        ElementPlus.ElMessage.success(t('简历画像已生成'))
+        await loadHistory()
+        finishCalcProgress()
+      } catch (e) {
+        calculating.value = false
+        stopCalcProgress()
+        throw e
+      } finally { loading.value = false }
+    }
+
     async function loadFeed() {
       const { data } = await http.get('/community/feed')
       communityFeed.value = data.items || []
@@ -1128,6 +1424,30 @@ const App = {
       await http.post(`/community/posts/${post.id}/${type}`)
       ElementPlus.ElMessage.success(type === 'favorite' ? '已收藏' : '已点赞')
       await loadFeed()
+      await loadHistory()
+    }
+
+    async function toggleComments(post) {
+      if (expandedComments.value[post.id]) {
+        expandedComments.value = { ...expandedComments.value, [post.id]: false }
+        return
+      }
+      const { data } = await http.get(`/community/posts/${post.id}`)
+      post.comments = data.comments || []
+      post.stats = data.stats || post.stats
+      expandedComments.value = { ...expandedComments.value, [post.id]: true }
+    }
+
+    async function submitComment(post) {
+      const content = (commentInputs.value[post.id] || '').trim()
+      if (!content) return ElementPlus.ElMessage.warning(t('评论不能为空'))
+      await http.post(`/community/posts/${post.id}/comment`, { content })
+      commentInputs.value = { ...commentInputs.value, [post.id]: '' }
+      const { data } = await http.get(`/community/posts/${post.id}`)
+      post.comments = data.comments || []
+      post.stats = data.stats || post.stats
+      expandedComments.value = { ...expandedComments.value, [post.id]: true }
+      ElementPlus.ElMessage.success(t('评论已发布'))
       await loadHistory()
     }
 
@@ -1469,11 +1789,10 @@ const App = {
 
     function setLanguage(lang) {
       language.value = STUDENT_I18N[lang] ? lang : 'zh-CN'
-      localStorage.setItem(APP_LANG_KEY, language.value)
-      localStorage.setItem('teammind_portal_lang', language.value)
+      TeamMindRuntime.storage.setItem(APP_LANG_KEY, language.value)
+      TeamMindRuntime.storage.setItem('teammind_portal_lang', language.value)
       document.documentElement.lang = language.value
       updateDocumentTitle()
-      nextTick(() => translateVisibleText(document.getElementById('app'), language.value, STUDENT_TEXT_I18N))
     }
 
     function onHashChange() {
@@ -1483,17 +1802,6 @@ const App = {
 
     onMounted(() => {
       setLanguage(language.value)
-      watch([language, page, loading], () => {
-        nextTick(() => translateVisibleText(document.getElementById('app'), language.value, STUDENT_TEXT_I18N))
-      })
-      const observer = new MutationObserver(() => {
-        window.clearTimeout(observer._tfTimer)
-        observer._tfTimer = window.setTimeout(() => {
-          translateVisibleText(document.getElementById('app'), language.value, STUDENT_TEXT_I18N)
-        }, 30)
-      })
-      observer.observe(document.getElementById('app'), { childList: true, subtree: true })
-      window.__teammindStudentI18nObserver = observer
       window.addEventListener('teammind-auth-expired', handleAuthExpired)
       clearStaleAdminSession()
       if (isLoggedIn.value) {
@@ -1515,7 +1823,6 @@ const App = {
 
     onUnmounted(() => {
       stopRefresh()
-      window.__teammindStudentI18nObserver?.disconnect()
       window.removeEventListener('hashchange', onHashChange)
       window.removeEventListener('teammind-auth-expired', handleAuthExpired)
     })
@@ -1527,19 +1834,21 @@ const App = {
       selectedStudentClassId, selectedStudentClass, activeClassMemberships, classActivities, classActivityForm,
       activities, selectedActivityId, currentActivity, myParticipant, myConfirmation, isConfirmationStage, confirmationSummary,
       activityTeams, teamForm, joinMessage, myRoom, confirmationForm, candidateMembers,
-      tagCatalog, activeTags, customTag, profileTab, calculating, calculateProgress, calculateText,
-      communityFeed, postForm, postMedia,
+      tagCatalog, activeTags, customTag, profileTab, resumeFile, calculating, calculateProgress, calculateText,
+      communityFeed, postForm, postMedia, commentInputs, expandedComments,
       conversations, messages, chatTargetId, chatConversationId, chatInput,
       currentNav, personalAlerts, myGroup, myTeamRole, teammates,
       language, LANGUAGE_OPTIONS, t, setLanguage,
-      ADMIN_PORTAL_URL, scorePct, scoreStyle, scoreLevel, userInitial, userAvatar, activityDisplayTitle, demoImageFallback, riskTagType, formatDeadline,
-      roleTitle, roleCandidates, roleSummary, positiveInsights, profileSuggestion, tagDimensionClass, tagIcon,
-      accountForm, passwordForm, taskCreateForm, doLogin, doRegister, logout, loadMe, saveAccount, changePassword, parseText, updateProgress, submitTaskFeedback, createStudentTask, loadTeamDashboard, go,
+      ADMIN_PORTAL_URL, scorePct, scoreStyle, scoreLevel, userInitial, userAvatar, activityDisplayTitle, displayDemoText, formatGroupingAdviceText, formatInsightText, formatActivityStatus, demoImageFallback, riskTagType, formatDeadline,
+      roleTitle, roleCandidates, roleSummary, positiveInsights, profileSuggestion,
+      localizedRoleSummary, localizedPositiveInsights, localizedProfileSuggestion,
+      tagDimensionClass, tagIcon,
+      accountForm, passwordForm, taskCreateForm, doLogin, doRegister, logout, loadMe, saveAccount, changePassword, parseText, parseResume, onResumeFile, updateProgress, submitTaskFeedback, createStudentTask, loadTeamDashboard, go,
       loadStudentClasses, loadClassActivities, createClassActivity, requestJoinClass, requestLeaveClass,
       loadActivities, joinActivity, syncActivityTags, loadActivityTeams, createTeamRoom, requestJoinTeam, handleJoinRequest, leaveTeamRoom,
       submitTeamConfirmation,
       isTagSelected, groupedTags, hotTags, tagNamesByDimension, setTagsForDimension,
-      toggleTag, addCustomTag, createPost, onPostMedia, interactPost, openConversation, startChat, sendMessage,
+      toggleTag, addCustomTag, createPost, onPostMedia, interactPost, toggleComments, submitComment, openConversation, startChat, sendMessage,
     }
   },
   template: `
@@ -1621,7 +1930,7 @@ const App = {
             <el-dropdown trigger="click">
               <div class="user-chip clickable">
                 <div class="avatar">
-                  <img v-if="userAvatar(user)" :src="userAvatar(user)" alt="头像" />
+                  <img v-if="userAvatar(user)" :src="userAvatar(user)" :alt="t('头像')" />
                   <span v-else>{{ userInitial(user?.name) }}</span>
                 </div>
                 <span class="user-name">{{ user?.name }}</span>
@@ -1640,29 +1949,29 @@ const App = {
             <div class="activity-board">
               <div class="activity-board-main">
                 <span class="activity-pill">Classroom</span>
-                <h2>我的班级</h2>
-                <p>加入班级后，老师创建课程项目时会按班级范围生成均匀分组。加入和退出都需要老师审批，避免小组范围混乱。</p>
+                <h2>{{ t('我的班级') }}</h2>
+                <p>{{ t('加入班级后，老师创建课程项目时会按班级范围生成均匀分组。加入和退出都需要老师审批，避免小组范围混乱。') }}</p>
               </div>
-              <el-button @click="loadStudentClasses">刷新</el-button>
+              <el-button @click="loadStudentClasses">{{ t('刷新') }}</el-button>
             </div>
 
             <div class="class-student-grid">
               <div class="card">
                 <div class="card-header">
                   <div>
-                    <h3>已加入 / 待审批班级</h3>
-                    <p class="hint">退出申请通过前，你仍会保留在当前班级成员名单中。</p>
+                    <h3>{{ t('已加入 / 待审批班级') }}</h3>
+                    <p class="hint">{{ t('退出申请通过前，你仍会保留在当前班级成员名单中。') }}</p>
                   </div>
                 </div>
-                <div v-if="!myClassMemberships.length" class="empty-note">还没有加入任何班级，可以在右侧申请。</div>
+                <div v-if="!myClassMemberships.length" class="empty-note">{{ t('还没有加入任何班级，可以在右侧申请。') }}</div>
                 <div v-for="m in myClassMemberships" :key="m.id" class="student-class-card">
                   <div>
-                    <strong>{{ m.classroom?.name || ('班级' + m.class_id) }}</strong>
-                    <p>{{ m.classroom?.course_name || m.classroom?.major || '课程信息待补充' }}</p>
+                    <strong>{{ displayDemoText(m.classroom?.name) || (t('班级') + m.class_id) }}</strong>
+                    <p>{{ displayDemoText(m.classroom?.course_name || m.classroom?.major) || t('课程信息待补充') }}</p>
                   </div>
                   <div class="student-class-actions">
-                    <el-tag :type="m.status==='active'?'success':'warning'">{{ m.status }}</el-tag>
-                    <el-button v-if="m.status==='active'" size="small" plain @click="requestLeaveClass(m)">申请退出</el-button>
+                    <el-tag :type="m.status==='active'?'success':'warning'">{{ formatActivityStatus(m.status) }}</el-tag>
+                    <el-button v-if="m.status==='active'" size="small" plain @click="requestLeaveClass(m)">{{ t('申请退出') }}</el-button>
                   </div>
                 </div>
               </div>
@@ -1670,66 +1979,66 @@ const App = {
               <div class="card">
                 <div class="card-header">
                   <div>
-                    <h3>可加入班级</h3>
-                    <p class="hint">提交申请后，等待任课老师或管理员审批。</p>
+                    <h3>{{ t('可加入班级') }}</h3>
+                    <p class="hint">{{ t('提交申请后，等待任课老师或管理员审批。') }}</p>
                   </div>
                 </div>
-                <el-input v-model="classRequestMessage" placeholder="申请说明（可选，例如我是本课程学生）" style="margin-bottom:12px" />
+                <el-input v-model="classRequestMessage" :placeholder="t('申请说明（可选，例如我是本课程学生）')" style="margin-bottom:12px" />
                 <div v-for="c in availableClasses" :key="c.id" class="student-class-card">
                   <div>
-                    <strong>{{ c.name }}</strong>
-                    <p>{{ c.course_name || c.major || '未设置课程' }} · {{ c.member_count || 0 }}/{{ c.max_students || 20 }} 人</p>
-                    <small class="hint">{{ c.grouping_advice?.summary }}</small>
-                    <small v-if="c.grouping_advice?.ai_analysis" class="hint">AI 分析：{{ c.grouping_advice.ai_analysis.summary }}</small>
+                    <strong>{{ displayDemoText(c.name) }}</strong>
+                    <p>{{ displayDemoText(c.course_name || c.major) || (t('未设置课程') + ' ·') }} {{ c.member_count || 0 }}/{{ c.max_students || 20 }} {{ t('人') }}</p>
+                    <small class="hint">{{ formatGroupingAdviceText(c.grouping_advice) }}</small>
+                    <small v-if="c.grouping_advice?.ai_analysis" class="hint">AI {{ t('分析：') }} {{ formatInsightText(c.grouping_advice.ai_analysis.summary) }}</small>
                   </div>
                   <div class="student-class-actions">
-                    <el-tag v-if="c.my_membership" :type="c.my_membership.status==='active'?'success':'warning'">{{ c.my_membership.status }}</el-tag>
-                    <el-tag v-else-if="c.my_pending_request" type="warning">审批中</el-tag>
-                    <el-button v-else size="small" type="primary" @click="requestJoinClass(c)">申请加入</el-button>
+                    <el-tag v-if="c.my_membership" :type="c.my_membership.status==='active'?'success':'warning'">{{ formatActivityStatus(c.my_membership.status) }}</el-tag>
+                    <el-tag v-else-if="c.my_pending_request" type="warning">{{ t('审批中') }}</el-tag>
+                    <el-button v-else size="small" type="primary" @click="requestJoinClass(c)">{{ t('申请加入') }}</el-button>
                   </div>
                 </div>
               </div>
             </div>
 
             <div class="card">
-              <h3>我的申请记录</h3>
-              <el-table :data="myClassRequests" stripe empty-text="暂无申请记录">
-                <el-table-column label="班级"><template #default="{row}">{{ row.classroom?.name || row.class_id }}</template></el-table-column>
-                <el-table-column label="类型" width="90"><template #default="{row}">{{ row.request_type==='join' ? '加入' : '退出' }}</template></el-table-column>
-                <el-table-column label="状态" width="100"><template #default="{row}"><el-tag size="small">{{ row.status }}</el-tag></template></el-table-column>
-                <el-table-column prop="message" label="说明" />
-                <el-table-column prop="reviewed_note" label="老师备注" />
+              <h3>{{ t('我的申请记录') }}</h3>
+              <el-table :data="myClassRequests" stripe :empty-text="t('暂无申请记录')">
+                <el-table-column :label="t('班级')"><template #default="{row}">{{ displayDemoText(row.classroom?.name) || row.class_id }}</template></el-table-column>
+                <el-table-column :label="t('类型')" width="90"><template #default="{row}">{{ row.request_type==='join' ? t('加入') : t('退出') }}</template></el-table-column>
+                <el-table-column :label="t('状态')" width="100"><template #default="{row}"><el-tag size="small">{{ formatActivityStatus(row.status) }}</el-tag></template></el-table-column>
+                <el-table-column prop="message" :label="t('说明')" />
+                <el-table-column prop="reviewed_note" :label="t('老师备注')" />
               </el-table>
             </div>
 
             <div class="card">
               <div class="card-header">
                 <div>
-                  <h3>班级活动</h3>
-                  <p class="hint">选择你所属的班级，查看该班当前组队活动；也可以为这个班级发起一个活动。</p>
+                  <h3>{{ t('班级活动') }}</h3>
+                  <p class="hint">{{ t('选择你所属的班级，查看该班当前组队活动；也可以为这个班级发起一个活动。') }}</p>
                 </div>
-                <el-select v-model="selectedStudentClassId" placeholder="选择班级" style="width:260px" @change="loadClassActivities">
-                  <el-option v-for="m in activeClassMemberships" :key="m.class_id" :label="m.classroom?.name || ('班级' + m.class_id)" :value="m.class_id" />
+                <el-select v-model="selectedStudentClassId" :placeholder="t('选择班级')" style="width:260px" @change="loadClassActivities">
+                  <el-option v-for="m in activeClassMemberships" :key="m.class_id" :label="m.classroom?.name || (t('班级') + m.class_id)" :value="m.class_id" />
                 </el-select>
               </div>
               <div v-if="selectedStudentClass" class="student-class-activity-create">
-                <el-input v-model="classActivityForm.title" placeholder="活动标题，如：期末展示自由组队" />
+                <el-input v-model="classActivityForm.title" :placeholder="t('活动标题，如：期末展示自由组队')" />
                 <el-select v-model="classActivityForm.mode" style="width:160px">
-                  <el-option label="学生自由组队" value="free_team" />
-                  <el-option label="任务驱动自动组队" value="task_auto" />
+                  <el-option :label="t('学生自由组队')" value="free_team" />
+                  <el-option :label="t('任务驱动自动组队')" value="task_auto" />
                 </el-select>
                 <el-input-number v-model="classActivityForm.group_size" :min="2" :max="8" />
-                <el-button type="primary" @click="createClassActivity">创建到该班级</el-button>
+                <el-button type="primary" @click="createClassActivity">{{ t('创建到该班级') }}</el-button>
               </div>
-              <el-input v-if="selectedStudentClass" v-model="classActivityForm.task_goal" type="textarea" :rows="2" placeholder="活动说明/任务需求（可选）" style="margin-bottom:12px" />
-              <el-table :data="classActivities" stripe empty-text="当前班级暂无活动">
-                <el-table-column label="活动" min-width="180"><template #default="{row}">{{ activityDisplayTitle(row) }}</template></el-table-column>
-                <el-table-column label="班级" min-width="140"><template #default="{row}">{{ selectedStudentClass?.classroom?.name || row.classroom?.name || '当前班级' }}</template></el-table-column>
-                <el-table-column label="方式" width="130"><template #default="{row}">{{ row.mode==='task_auto' ? '任务驱动' : '自由组队' }}</template></el-table-column>
-                <el-table-column prop="status" label="状态" width="100" />
-                <el-table-column label="操作" width="120">
+              <el-input v-if="selectedStudentClass" v-model="classActivityForm.task_goal" type="textarea" :rows="2" :placeholder="t('活动说明/任务需求（可选）')" style="margin-bottom:12px" />
+              <el-table :data="classActivities" stripe :empty-text="t('当前班级暂无活动')">
+                <el-table-column :label="t('活动')" min-width="180"><template #default="{row}">{{ activityDisplayTitle(row) }}</template></el-table-column>
+                <el-table-column :label="t('班级')" min-width="140"><template #default="{row}">{{ displayDemoText(selectedStudentClass?.classroom?.name || row.classroom?.name) || t('当前班级') }}</template></el-table-column>
+                <el-table-column :label="t('方式')" width="130"><template #default="{row}">{{ row.mode==='task_auto' ? t('任务驱动') : t('自由组队') }}</template></el-table-column>
+                <el-table-column :label="t('状态')" width="100"><template #default="{row}">{{ formatActivityStatus(row.status) }}</template></el-table-column>
+                <el-table-column :label="t('操作')" width="120">
                   <template #default="{row}">
-                    <el-button size="small" type="primary" plain @click="selectedActivityId=row.id; go('team')">查看/参与</el-button>
+                    <el-button size="small" type="primary" plain @click="selectedActivityId=row.id; go('team')">{{ t('查看/参与') }}</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -1739,46 +2048,46 @@ const App = {
           <template v-if="page==='profile'">
             <div v-if="currentActivity" class="activity-hero-card">
               <div>
-                <span class="activity-pill">{{ currentActivity.mode==='task_auto' ? '任务驱动组队' : '自由组队' }}</span>
+                <span class="activity-pill">{{ currentActivity.mode==='task_auto' ? t('任务驱动组队') : t('自由组队') }}</span>
                 <h3>{{ activityDisplayTitle(currentActivity) }}</h3>
-                <p>{{ currentActivity.task_goal || currentActivity.description || '老师已发起新的组队活动，请选择是否参与。' }}</p>
+                <p>{{ currentActivity.task_goal || currentActivity.description || t('老师已发起新的组队活动，请选择是否参与。') }}</p>
               </div>
               <div class="activity-hero-actions">
-                <el-tag :type="myParticipant ? 'success' : 'warning'">{{ myParticipant ? '已参与' : '待参与' }}</el-tag>
-                <el-button type="primary" @click="myParticipant ? syncActivityTags() : joinActivity()">{{ myParticipant ? '同步当前标签' : '参与活动' }}</el-button>
-                <el-button plain @click="go('team')">查看活动</el-button>
+                <el-tag :type="myParticipant ? 'success' : 'warning'">{{ myParticipant ? t('已参与') : t('待参与') }}</el-tag>
+                <el-button type="primary" @click="myParticipant ? syncActivityTags() : joinActivity()">{{ myParticipant ? t('同步当前标签') : t('参与活动') }}</el-button>
+                <el-button plain @click="go('team')">{{ t('查看活动') }}</el-button>
               </div>
             </div>
             <div class="theory-panel">
-              <h4>先完成你的项目名片</h4>
-              <p>选择几个与你相关的标签，系统会整理出适合你的角色方向。也可以补充一段自我介绍，让建议更准确。</p>
+              <h4>{{ t('先完成你的项目名片') }}</h4>
+              <p>{{ t('选择几个与你相关的标签，系统会整理出适合你的角色方向。也可以补充一段自我介绍，让建议更准确。') }}</p>
             </div>
             <div class="card profile-tag-card">
               <div class="profile-card-head">
                 <div class="profile-card-title">
                   <span class="profile-title-icon">🏷️</span>
                   <div>
-                    <h3>我的项目标签</h3>
-                    <p class="hint">先按维度快速圈出特点，再用自由描述补充细节。</p>
+                    <h3>{{ t('我的项目标签') }}</h3>
+                    <p class="hint">{{ t('先按维度快速圈出特点，再用自由描述补充细节。') }}</p>
                   </div>
                 </div>
                 <div class="profile-step-mini">
-                  <span>① 主动标签</span>
-                  <span>② 自由描述</span>
+                  <span>{{ t('① 主动标签') }}</span>
+                  <span>{{ t('② 自由描述') }}</span>
                 </div>
               </div>
               <el-tabs v-model="profileTab">
-                <el-tab-pane label="① 主动标签" name="tags">
-                  <p class="hint">点击标签选中/取消；自定义标签可选。仅选主动标签也可提交，自由描述为补充项。</p>
+                <el-tab-pane :label="t('① 主动标签')" name="tags">
+                  <p class="hint">{{ t('点击标签选中/取消；自定义标签可选。仅选主动标签也可提交，自由描述为补充项。') }}</p>
                   <div class="tag-section dimension-knowledge">
                     <div class="tag-section-head">
                       <div class="dimension-title">
                         <span class="dimension-icon">📚</span>
-                        <div><h4>知识维度</h4><small>你熟悉的课程、理论和领域方向</small></div>
+                        <div><h4>{{ t('知识维度') }}</h4><small>{{ t('你熟悉的课程、理论和领域方向') }}</small></div>
                       </div>
-                      <span>{{ (tagCatalog.knowledge||[]).length }} 个标签</span>
+                      <span>{{ (tagCatalog.knowledge||[]).length }} {{ t('个标签') }}</span>
                     </div>
-                    <el-select :model-value="tagNamesByDimension('knowledge')" multiple filterable clearable placeholder="搜索或下拉选择知识标签" class="tag-select" @change="(names)=>setTagsForDimension('knowledge', names)">
+                    <el-select :model-value="tagNamesByDimension('knowledge')" multiple filterable clearable :placeholder="t('搜索或下拉选择知识标签')" class="tag-select" @change="(names)=>setTagsForDimension('knowledge', names)">
                       <el-option-group v-for="(items, category) in groupedTags('knowledge')" :key="category" :label="category">
                         <el-option v-for="t in items" :key="t.id" :label="t.name" :value="t.name" />
                       </el-option-group>
@@ -1791,11 +2100,11 @@ const App = {
                     <div class="tag-section-head">
                       <div class="dimension-title">
                         <span class="dimension-icon">🛠️</span>
-                        <div><h4>技能维度</h4><small>你能承担的工具、方法和执行任务</small></div>
+                        <div><h4>{{ t('技能维度') }}</h4><small>{{ t('你能承担的工具、方法和执行任务') }}</small></div>
                       </div>
-                      <span>{{ (tagCatalog.skill||[]).length }} 个标签</span>
+                      <span>{{ (tagCatalog.skill||[]).length }} {{ t('个标签') }}</span>
                     </div>
-                    <el-select :model-value="tagNamesByDimension('skill')" multiple filterable clearable placeholder="搜索或下拉选择技能标签" class="tag-select" @change="(names)=>setTagsForDimension('skill', names)">
+                    <el-select :model-value="tagNamesByDimension('skill')" multiple filterable clearable :placeholder="t('搜索或下拉选择技能标签')" class="tag-select" @change="(names)=>setTagsForDimension('skill', names)">
                       <el-option-group v-for="(items, category) in groupedTags('skill')" :key="category" :label="category">
                         <el-option v-for="t in items" :key="t.id" :label="t.name" :value="t.name" />
                       </el-option-group>
@@ -1808,11 +2117,11 @@ const App = {
                     <div class="tag-section-head">
                       <div class="dimension-title">
                         <span class="dimension-icon">🤝</span>
-                        <div><h4>协作维度</h4><small>你在团队里的沟通、推进和配合方式</small></div>
+                        <div><h4>{{ t('协作维度') }}</h4><small>{{ t('你在团队里的沟通、推进和配合方式') }}</small></div>
                       </div>
-                      <span>{{ (tagCatalog.collab||[]).length }} 个标签</span>
+                      <span>{{ (tagCatalog.collab||[]).length }} {{ t('个标签') }}</span>
                     </div>
-                    <el-select :model-value="tagNamesByDimension('collab')" multiple filterable clearable placeholder="搜索或下拉选择协作标签" class="tag-select" @change="(names)=>setTagsForDimension('collab', names)">
+                    <el-select :model-value="tagNamesByDimension('collab')" multiple filterable clearable :placeholder="t('搜索或下拉选择协作标签')" class="tag-select" @change="(names)=>setTagsForDimension('collab', names)">
                       <el-option-group v-for="(items, category) in groupedTags('collab')" :key="category" :label="category">
                         <el-option v-for="t in items" :key="t.id" :label="t.name" :value="t.name" />
                       </el-option-group>
@@ -1824,14 +2133,14 @@ const App = {
                   <div class="custom-tag-panel">
                     <span class="custom-tag-icon">✨</span>
                     <div>
-                      <strong>自定义标签（可选）</strong>
-                      <p>没有合适标签时，可以补一个最能代表你的关键词。</p>
+                      <strong>{{ t('自定义标签（可选）') }}</strong>
+                      <p>{{ t('没有合适标签时，可以补一个最能代表你的关键词。') }}</p>
                     </div>
-                    <el-input v-model="customTag" placeholder="自定义标签（可选）" />
-                    <el-button @click="addCustomTag('skill')">添加</el-button>
+                    <el-input v-model="customTag" :placeholder="t('自定义标签（可选）')" />
+                    <el-button @click="addCustomTag('skill')">{{ t('添加') }}</el-button>
                   </div>
                   <div class="selected-tags-panel">
-                    <strong>已选 {{ activeTags.length }} 个：</strong>
+                    <strong>{{ t('已选') }} {{ activeTags.length }} {{ t('个：') }}</strong>
                     <div class="selected-tags-list">
                       <el-tag v-for="t in activeTags" :key="t.name" closable @close="activeTags=activeTags.filter(x=>x.name!==t.name)" :class="['selected-tag', tagDimensionClass(t)]">
                         <span class="tag-chip-icon">{{ tagIcon(t) }}</span>{{ t.name }}
@@ -1839,23 +2148,35 @@ const App = {
                     </div>
                   </div>
                 </el-tab-pane>
-                <el-tab-pane label="② 自由描述" name="text">
-                  <p class="hint">可选。DeepSeek 会结合主动标签分析自由文本；不填写时仅依据已选标签生成画像。</p>
-                  <el-input v-model="rawText" type="textarea" :rows="8" maxlength="800" show-word-limit placeholder="可选：例如计算机专业，熟悉 Python 与前端..." />
+                <el-tab-pane :label="t('② 自由描述')" name="text">
+                  <p class="hint">{{ t('可选。DeepSeek 会结合主动标签分析自由文本；不填写时仅依据已选标签生成画像。') }}</p>
+                  <el-input v-model="rawText" type="textarea" :rows="8" maxlength="800" show-word-limit :placeholder="t('可选：例如计算机专业，熟悉 Python 与前端...')" />
+                </el-tab-pane>
+                <el-tab-pane :label="t('③ 简历上传')" name="resume">
+                  <p class="hint">{{ t('上传 PDF / DOC / DOCX 简历，系统会提取经历并融合已选标签生成画像。') }}</p>
+                  <div class="custom-tag-panel">
+                    <span class="custom-tag-icon">📄</span>
+                    <div>
+                      <strong>{{ resumeFile ? (t('已选择：') + resumeFile.name) : t('选择简历文件') }}</strong>
+                      <p>{{ t('支持 PDF、DOC、DOCX；若解析失败，可回到自由描述手动补充。') }}</p>
+                    </div>
+                    <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" @change="onResumeFile" />
+                    <el-button type="primary" plain :disabled="!resumeFile" :loading="loading" @click="parseResume">{{ t('解析简历并生成画像') }}</el-button>
+                  </div>
                 </el-tab-pane>
               </el-tabs>
-              <el-button type="primary" :loading="loading" @click="parseText" size="large" style="margin-top:16px">提交并生成综合画像</el-button>
+              <el-button type="primary" :loading="loading" @click="parseText" size="large" style="margin-top:16px">{{ t('提交并生成综合画像') }}</el-button>
             </div>
             <div v-if="profile" class="card profile-result-card">
               <div class="profile-result-head">
                 <div>
-                  <h3>我的协作画像</h3>
-                  <p class="hint">根据你的主动标签、学习互动和任务表现生成，仅展示正向角色建议</p>
+                  <h3>{{ t('我的协作画像') }}</h3>
+                  <p class="hint">{{ t('根据你的主动标签、学习互动和任务表现生成，仅展示正向角色建议') }}</p>
                 </div>
-                <el-tag type="success" size="large">多角色方向</el-tag>
+                <el-tag type="success" size="large">{{ t('多角色方向') }}</el-tag>
               </div>
               <div class="role-hero">
-                <div class="role-badge">适合以下角色方向</div>
+                <div class="role-badge">{{ t('适合以下角色方向') }}</div>
                 <div class="role-options">
                   <div v-for="(role, idx) in roleCandidates(profile)" :key="role.name" class="role-option" :class="'rank-' + idx">
                     <span class="role-rank">{{ idx + 1 }}</span>
@@ -1863,10 +2184,10 @@ const App = {
                     <small>{{ role.source }}</small>
                   </div>
                 </div>
-                <p>{{ roleSummary(profile) }}</p>
+                <p>{{ localizedRoleSummary }}</p>
               </div>
               <div class="profile-insight-grid role-insight-grid">
-                <div class="profile-insight role-insight" v-for="item in positiveInsights(profile)" :key="item.title">
+                <div class="profile-insight role-insight" v-for="item in localizedPositiveInsights" :key="item.title">
                   <div class="insight-icon">{{ item.icon }}</div>
                   <h4>{{ item.title }}</h4>
                   <p>{{ item.text }}</p>
@@ -1874,42 +2195,42 @@ const App = {
               </div>
               <div class="profile-insight-grid">
                 <div class="profile-insight" v-if="profile.active_tags?.length">
-                  <h4>你选择的标签</h4>
+                  <h4>{{ t('你选择的标签') }}</h4>
                   <span v-for="t in profile.active_tags" :key="t.name" class="ability-badge" :class="tagDimensionClass(t)">
                     <b>{{ tagIcon(t) }}</b>{{ t.name }}
                   </span>
                 </div>
                 <div class="profile-insight" v-if="profile.passive_tags?.length">
-                  <h4>学习互动标签</h4>
+                  <h4>{{ t('学习互动标签') }}</h4>
                   <span v-for="t in profile.passive_tags" :key="t.name" class="ability-badge passive" :class="tagDimensionClass(t)">
                     <b>{{ tagIcon(t) }}</b>{{ t.name }}
                   </span>
                 </div>
               </div>
               <div class="student-suggestion">
-                <strong>给你的建议</strong>
-                <p>{{ profileSuggestion(profile) }}</p>
+                <strong>{{ t('给你的建议') }}</strong>
+                <p>{{ localizedProfileSuggestion }}</p>
               </div>
             </div>
           </template>
 
           <template v-if="page==='team'">
             <div v-if="!activities.length" class="card">
-              <el-empty description="暂无当前组队活动">
-                <template #default><p class="hint">老师创建并发布组队活动后，这里会显示参与入口和队伍信息。</p></template>
+              <el-empty :description="t('暂无当前组队活动')">
+                <template #default><p class="hint">{{ t('老师创建并发布组队活动后，这里会显示参与入口和队伍信息。') }}</p></template>
               </el-empty>
             </div>
             <template v-else>
               <div class="activity-board">
                 <div class="activity-board-main">
-                  <span class="activity-pill">{{ currentActivity?.mode==='task_auto' ? '任务驱动自动组队' : '学生自由组队' }}</span>
-                  <h2>{{ currentActivity?.title }}</h2>
-                  <p>{{ currentActivity?.task_goal || currentActivity?.description || '请按老师要求参与本次组队活动。' }}</p>
+                  <span class="activity-pill">{{ currentActivity?.mode==='task_auto' ? t('任务驱动自动组队') : t('学生自由组队') }}</span>
+                  <h2>{{ activityDisplayTitle(currentActivity) }}</h2>
+                  <p>{{ currentActivity?.task_goal || currentActivity?.description || t('请按老师要求参与本次组队活动。') }}</p>
                   <div class="activity-board-actions">
-                    <el-button v-if="!myParticipant" type="primary" @click="joinActivity()">参与本次活动</el-button>
-                    <el-button v-else type="primary" plain @click="syncActivityTags()">同步我的标签</el-button>
-                    <el-tag :type="myParticipant ? 'success' : 'warning'">{{ myParticipant ? '已参与' : '未参与' }}</el-tag>
-                    <el-tag>{{ currentActivity?.status }}</el-tag>
+                    <el-button v-if="!myParticipant" type="primary" @click="joinActivity()">{{ t('参与本次活动') }}</el-button>
+                    <el-button v-else type="primary" plain @click="syncActivityTags()">{{ t('同步我的标签') }}</el-button>
+                    <el-tag :type="myParticipant ? 'success' : 'warning'">{{ myParticipant ? t('已参与') : t('未参与') }}</el-tag>
+                    <el-tag>{{ formatActivityStatus(currentActivity?.status) }}</el-tag>
                   </div>
                 </div>
                 <el-select v-model="selectedActivityId" style="width:260px" @change="loadActivities">
@@ -1918,135 +2239,135 @@ const App = {
               </div>
 
               <div v-if="currentActivity?.mode==='free_team' && myParticipant" class="card">
-                <div class="card-header"><h3>组队大厅</h3><el-button @click="loadActivityTeams">刷新</el-button></div>
+                <div class="card-header"><h3>{{ t('组队大厅') }}</h3><el-button @click="loadActivityTeams">{{ t('刷新') }}</el-button></div>
                 <div v-if="!myRoom" class="free-create-box">
-                  <el-input v-model="teamForm.name" placeholder="队伍名称" />
-                  <el-input v-model="teamForm.description" placeholder="队伍说明 / 想找什么伙伴" />
-                  <el-button type="primary" @click="createTeamRoom">创建我的队伍</el-button>
+                  <el-input v-model="teamForm.name" :placeholder="t('队伍名称')" />
+                  <el-input v-model="teamForm.description" :placeholder="t('队伍说明 / 想找什么伙伴')" />
+                  <el-button type="primary" @click="createTeamRoom">{{ t('创建我的队伍') }}</el-button>
                 </div>
                 <div class="free-room-grid">
                   <div v-for="room in activityTeams" :key="room.id" class="free-room-card" :class="{mine: room.id===myRoom?.id}">
                     <div class="room-head">
                       <strong>{{ room.name }}</strong>
-                      <el-tag size="small">{{ (room.member_ids||[]).length }} 人</el-tag>
+                      <el-tag size="small">{{ (room.member_ids||[]).length }} {{ t('人') }}</el-tag>
                     </div>
-                    <p>{{ room.description || '队伍暂未填写说明' }}</p>
+                    <p>{{ room.description || t('队伍暂未填写说明') }}</p>
                     <div class="room-members">
                       <el-tag v-for="m in room.members||[]" :key="m.id" size="small">{{ m.name }}</el-tag>
                     </div>
                     <template v-if="room.leader_id===user?.id">
                       <div v-for="req in room.pending_requests||[]" :key="req.id" class="join-request">
-                        <span>{{ req.user?.name || req.user_id }} 申请加入</span>
-                        <el-button size="small" type="success" @click="handleJoinRequest(req,'approve')">同意</el-button>
-                        <el-button size="small" @click="handleJoinRequest(req,'reject')">拒绝</el-button>
+                        <span>{{ req.user?.name || req.user_id }} {{ t('申请加入') }}</span>
+                        <el-button size="small" type="success" @click="handleJoinRequest(req,'approve')">{{ t('同意') }}</el-button>
+                        <el-button size="small" @click="handleJoinRequest(req,'reject')">{{ t('拒绝') }}</el-button>
                       </div>
                     </template>
                     <div v-if="!myRoom && room.leader_id!==user?.id" class="join-box">
-                      <el-input v-model="joinMessage" size="small" placeholder="给队长留言（可选）" />
-                      <el-button size="small" type="primary" @click="requestJoinTeam(room)">申请加入</el-button>
+                      <el-input v-model="joinMessage" size="small" :placeholder="t('给队长留言（可选）')" />
+                      <el-button size="small" type="primary" @click="requestJoinTeam(room)">{{ t('申请加入') }}</el-button>
                     </div>
-                    <el-button v-if="room.id===myRoom?.id" size="small" plain @click="leaveTeamRoom(room)">退出队伍</el-button>
+                    <el-button v-if="room.id===myRoom?.id" size="small" plain @click="leaveTeamRoom(room)">{{ t('退出队伍') }}</el-button>
                   </div>
                 </div>
               </div>
 
               <div v-if="currentActivity?.mode==='task_auto' && myParticipant && !myGroup" class="waiting-card">
                 <div class="waiting-orbit"></div>
-                <h3>等待老师汇总并发布分组</h3>
-                <p>你已参与本次活动。系统会结合本次标签、历史互动和任务需求生成队伍，老师发布后这里会显示你的团队。</p>
+                <h3>{{ t('等待老师汇总并发布分组') }}</h3>
+                <p>{{ t('你已参与本次活动。系统会结合本次标签、历史互动和任务需求生成队伍，老师发布后这里会显示你的团队。') }}</p>
               </div>
 
               <div v-if="currentActivity?.mode==='free_team' && myParticipant && currentActivity.status!=='locked'" class="waiting-card small">
-                <h3>自由组队进行中</h3>
-                <p>可以继续创建、申请或调整队伍。老师锁定后会进入正式团队页。</p>
+                <h3>{{ t('自由组队进行中') }}</h3>
+                <p>{{ t('可以继续创建、申请或调整队伍。老师锁定后会进入正式团队页。') }}</p>
               </div>
 
               <div v-if="currentActivity?.mode==='task_auto' && myGroup && isConfirmationStage" class="card confirm-panel">
                 <div class="card-header">
                   <div>
-                    <h3>预沟通确认：候选团队还未最终锁定</h3>
-                    <p class="hint">请先和候选队友沟通，确认大家是否接受当前角色定位和后续任务方向；如不合适，可以提交微调申请给老师。</p>
+                    <h3>{{ t('预沟通确认：候选团队还未最终锁定') }}</h3>
+                    <p class="hint">{{ t('请先和候选队友沟通，确认大家是否接受当前角色定位和后续任务方向；如不合适，可以提交微调申请给老师。') }}</p>
                   </div>
                   <el-tag :type="myConfirmation?.status==='accepted' ? 'success' : (myConfirmation?.status==='adjust_requested' ? 'warning' : 'info')">
-                    {{ myConfirmation?.status || 'pending' }}
+                    {{ formatActivityStatus(myConfirmation?.status || 'pending') }}
                   </el-tag>
                 </div>
-                <p v-if="myGroup.complement_note" class="explain-banner">候选匹配依据：{{ myGroup.complement_note }}</p>
+                <p v-if="myGroup.complement_note" class="explain-banner">{{ t('候选匹配依据：') }} {{ formatInsightText(myGroup.complement_note) }}</p>
                 <div v-if="myGroup.ai_analysis" class="student-ai-card">
-                  <strong>AI 候选团队分析</strong>
-                  <p>{{ myGroup.ai_analysis.summary }}</p>
-                  <span v-for="x in myGroup.ai_analysis.recommendations||[]" :key="x">{{ x }}</span>
+                  <strong>{{ t('AI 候选团队分析') }}</strong>
+                  <p>{{ formatInsightText(myGroup.ai_analysis.summary) }}</p>
+                  <span v-for="x in myGroup.ai_analysis.recommendations||[]" :key="x">{{ formatInsightText(x) }}</span>
                 </div>
                 <div class="summary-pills" v-if="confirmationSummary">
-                  <span class="pill">确认率 {{ confirmationSummary.accept_rate }}%</span>
-                  <span class="pill warn" v-if="confirmationSummary.adjust_requested">微调申请 {{ confirmationSummary.adjust_requested }}</span>
-                  <span class="pill">待确认 {{ confirmationSummary.pending }}</span>
+                  <span class="pill">{{ t('确认率') }} {{ confirmationSummary.accept_rate }}</span>
+                  <span class="pill warn" v-if="confirmationSummary.adjust_requested">{{ t('微调申请') }} {{ confirmationSummary.adjust_requested }}</span>
+                  <span class="pill">{{ t('待确认') }} {{ confirmationSummary.pending }}</span>
                 </div>
                 <div class="member-grid">
                   <div v-for="m in candidateMembers" :key="m.id" class="member-card" :class="{me: m.id===user?.id}">
                     <div class="member-head">
                       <div class="member-avatar">{{ userInitial(m.name) }}</div>
                       <div>
-                        <strong>{{ m.name }}{{ m.id===user?.id ? '（我）' : '' }}</strong>
+                        <strong>{{ m.name }}{{ m.id===user?.id ? t('（我）') : '' }}</strong>
                         <div class="hint">{{ m.bio || '暂未填写个人介绍' }}</div>
                       </div>
                     </div>
-                    <el-button v-if="m.id!==user?.id" size="small" plain @click="startChat(m.id)">发消息沟通</el-button>
+                    <el-button v-if="m.id!==user?.id" size="small" plain @click="startChat(m.id)">{{ t('发消息沟通') }}</el-button>
                   </div>
                 </div>
                 <el-form label-position="top" class="confirm-form">
-                  <el-form-item label="希望承担/调整的角色（可选）">
-                    <el-input v-model="confirmationForm.preferred_role" :placeholder="myConfirmation?.preferred_role || myTeamRole || '如：技术开发、文档汇报、协调对接'" />
+                  <el-form-item :label="t('希望承担/调整的角色（可选）')">
+                    <el-input v-model="confirmationForm.preferred_role" :placeholder="myConfirmation?.preferred_role || myTeamRole || t('如：技术开发、文档汇报、协调对接')" />
                   </el-form-item>
-                  <el-form-item label="希望承担或避免的任务（可选）">
-                    <el-input v-model="confirmationForm.task_preferences" placeholder="如：愿意做原型；不适合后端；需要同伴协助数据分析" />
+                  <el-form-item :label="t('希望承担或避免的任务（可选）')">
+                    <el-input v-model="confirmationForm.task_preferences" :placeholder="t('如：愿意做原型；不适合后端；需要同伴协助数据分析')" />
                   </el-form-item>
-                  <el-form-item label="沟通备注 / 微调原因">
-                    <el-input v-model="confirmationForm.reason" type="textarea" :rows="3" placeholder="如果不接受当前安排，请说明原因；接受时也可以写给老师和队友的备注。" />
+                  <el-form-item :label="t('沟通备注 / 微调原因')">
+                    <el-input v-model="confirmationForm.reason" type="textarea" :rows="3" :placeholder="t('如果不接受当前安排，请说明原因；接受时也可以写给老师和队友的备注。')" />
                   </el-form-item>
                   <div class="toolbar-row">
-                    <el-button type="primary" :loading="loading" @click="submitTeamConfirmation(true)">接受当前团队与角色</el-button>
-                    <el-button type="warning" plain :loading="loading" @click="submitTeamConfirmation(false)">提交微调申请</el-button>
+                    <el-button type="primary" :loading="loading" @click="submitTeamConfirmation(true)">{{ t('接受当前团队与角色') }}</el-button>
+                    <el-button type="warning" plain :loading="loading" @click="submitTeamConfirmation(false)">{{ t('提交微调申请') }}</el-button>
                   </div>
                 </el-form>
               </div>
 
               <template v-if="myGroup">
               <div class="theory-panel supervision">
-                <h4>当前活动团队</h4>
-                <p>{{ isConfirmationStage ? '这是候选团队，老师锁定后会进入正式分工。' : '只展示本次活动对应的团队和队友任务进度，历史小组不会混在这里。' }}</p>
+                <h4>{{ t('当前活动团队') }}</h4>
+                <p>{{ isConfirmationStage ? t('这是候选团队，老师锁定后会进入正式分工。') : t('只展示本次活动对应的团队和队友任务进度，历史小组不会混在这里。') }}</p>
               </div>
               <div class="card highlight-card" v-if="myTeamRole">
-                <p>你在 <strong>{{ myGroup?.group_name }}</strong> 中的角色</p>
+                <p>{{ t('你在') }} <strong>{{ myGroup?.group_name }}</strong> {{ t('中的角色') }}</p>
                 <el-tag type="primary" size="large">{{ myTeamRole }}</el-tag>
               </div>
               <div class="card toolbar-row" v-if="groups.length > 1">
                 <el-select v-model="groupId" @change="loadTeamDashboard" style="width:220px">
                   <el-option v-for="g in groups" :key="g.id" :label="g.group_name" :value="g.id" />
                 </el-select>
-                <el-button @click="loadTeamDashboard">刷新</el-button>
-                <span class="hint">每 30 秒自动刷新团队数据</span>
+                <el-button @click="loadTeamDashboard">{{ t('刷新') }}</el-button>
+                <span class="hint">{{ t('每 30 秒自动刷新团队数据') }}</span>
               </div>
               <template v-if="teamDashboard">
-                <p v-if="teamDashboard.grouping_explain" class="explain-banner">本组组队依据：{{ teamDashboard.grouping_explain }}</p>
+                <p v-if="teamDashboard.grouping_explain" class="explain-banner">{{ t('本组组队依据：') }} {{ teamDashboard.grouping_explain }}</p>
                 <div v-if="teamDashboard.group?.ai_analysis" class="student-ai-card">
-                  <strong>AI 团队协作建议</strong>
+                  <strong>{{ t('AI 团队协作建议') }}</strong>
                   <p>{{ teamDashboard.group.ai_analysis.summary }}</p>
                   <span v-for="x in teamDashboard.group.ai_analysis.recommendations||[]" :key="x">{{ x }}</span>
                 </div>
                 <div class="summary-pills">
-                  <span class="pill">团队完成率 {{ teamDashboard.summary?.completion_rate }}%</span>
-                  <span class="pill warn" v-if="teamDashboard.summary?.warning_risks">预警 {{ teamDashboard.summary.warning_risks }}</span>
+                  <span class="pill">{{ t('团队完成率') }} {{ teamDashboard.summary?.completion_rate }}</span>
+                  <span class="pill warn" v-if="teamDashboard.summary?.warning_risks">{{ t('预警') }} {{ teamDashboard.summary.warning_risks }}</span>
                 </div>
                 <div class="card">
-                  <h3>队友进度（全员可见）</h3>
+                  <h3>{{ t('队友进度（全员可见）') }}</h3>
                   <div class="member-grid">
                     <div v-for="m in teamDashboard.members" :key="m.user?.id" class="member-card" :class="{me: m.user?.id===user?.id}">
                       <div class="member-head">
                         <div class="member-avatar">{{ userInitial(m.user?.name) }}</div>
                         <div>
-                          <strong>{{ m.user?.name }}{{ m.user?.id===user?.id ? '（我）' : '' }}</strong>
-                          <div style="font-size:12px;color:#64748b">{{ m.team_role || '角色待定' }}</div>
+                          <strong>{{ m.user?.name }}{{ m.user?.id===user?.id ? t('（我）') : '' }}</strong>
+                          <div style="font-size:12px;color:#64748b">{{ m.team_role || t('角色待定') }}</div>
                         </div>
                         <el-tag size="small" :type="m.engagement?.engagement_level==='low'?'danger':'success'">{{ m.engagement?.engagement_label }}</el-tag>
                       </div>
@@ -2057,24 +2378,24 @@ const App = {
                 <div class="card">
                   <div class="card-header">
                     <div>
-                      <h3>全组任务（互相可见）</h3>
-                      <p class="hint">老师分配的任务和同学主动创建的任务都会显示在这里，方便互相了解、协作和调整。</p>
+                      <h3>{{ t('全组任务（互相可见）') }}</h3>
+                      <p class="hint">{{ t('老师分配的任务和同学主动创建的任务都会显示在这里，方便互相了解、协作和调整。') }}</p>
                     </div>
-                    <el-button type="primary" plain @click="go('tasks')">我想创建任务</el-button>
+                    <el-button type="primary" plain @click="go('tasks')">{{ t('我想创建任务') }}</el-button>
                   </div>
                   <el-table v-if="(teamDashboard.tasks||[]).length" :data="teamDashboard.tasks" stripe>
-                    <el-table-column prop="task_name" label="任务" min-width="160" />
-                    <el-table-column label="负责人" width="120">
+                    <el-table-column prop="task_name" :label="t('任务')" min-width="160" />
+                    <el-table-column :label="t('负责人')" width="120">
                       <template #default="{row}">
-                        {{ (teamDashboard.members||[]).find(m=>m.user?.id===row.assignee_id)?.user?.name || ('用户' + row.assignee_id) }}
+                        {{ (teamDashboard.members||[]).find(m=>m.user?.id===row.assignee_id)?.user?.name || (t('用户') + row.assignee_id) }}
                       </template>
                     </el-table-column>
-                    <el-table-column label="说明" min-width="220"><template #default="{row}"><span class="explain-text">{{ row.assign_reason || row.description || '—' }}</span></template></el-table-column>
-                    <el-table-column label="截止" width="110"><template #default="{row}">{{ formatDeadline(row.deadline) }}</template></el-table-column>
-                    <el-table-column label="进度" width="160"><template #default="{row}"><el-progress :percentage="row.progress||0" /></template></el-table-column>
-                    <el-table-column label="状态" width="100"><template #default="{row}"><el-tag size="small">{{ row.status }}</el-tag></template></el-table-column>
+                    <el-table-column :label="t('说明')" min-width="220"><template #default="{row}"><span class="explain-text">{{ row.assign_reason || row.description || '—' }}</span></template></el-table-column>
+                    <el-table-column :label="t('截止')" width="110"><template #default="{row}">{{ formatDeadline(row.deadline) }}</template></el-table-column>
+                    <el-table-column :label="t('进度')" width="160"><template #default="{row}"><el-progress :percentage="row.progress||0" /></template></el-table-column>
+                    <el-table-column :label="t('状态')" width="100"><template #default="{row}"><el-tag size="small">{{ formatActivityStatus(row.status) }}</el-tag></template></el-table-column>
                   </el-table>
-                  <el-empty v-else description="暂无小组任务。老师分配或同学创建后会显示。" />
+                  <el-empty v-else :description="t('暂无小组任务。老师分配或同学创建后会显示。')" />
                 </div>
               </template>
               </template>
@@ -2085,76 +2406,76 @@ const App = {
             <div class="card">
               <div class="card-header">
                 <div>
-                  <h3>我想做的任务</h3>
-                  <p class="hint">你可以主动创建并认领自己想做的任务。创建后会进入小组任务列表，队友和老师都能看到。</p>
+                  <h3>{{ t('我想做的任务') }}</h3>
+                  <p class="hint">{{ t('你可以主动创建并认领自己想做的任务。创建后会进入小组任务列表，队友和老师都能看到。') }}</p>
                 </div>
               </div>
               <el-form label-position="top" class="student-task-form">
-                <el-form-item label="任务名称"><el-input v-model="taskCreateForm.task_name" placeholder="如：整理用户访谈问题、实现登录页原型、完成数据清洗" /></el-form-item>
-                <el-form-item label="任务说明"><el-input v-model="taskCreateForm.description" type="textarea" :rows="3" placeholder="简单说明你准备做什么、产出是什么" /></el-form-item>
-                <el-form-item label="为什么想做 / 需要什么协助"><el-input v-model="taskCreateForm.reason" type="textarea" :rows="2" placeholder="例如：我擅长前端，想负责页面实现；需要队友提供接口字段" /></el-form-item>
+                <el-form-item :label="t('任务名称')"><el-input v-model="taskCreateForm.task_name" :placeholder="t('如：整理用户访谈问题、实现登录页原型、完成数据清洗')" /></el-form-item>
+                <el-form-item :label="t('任务说明')"><el-input v-model="taskCreateForm.description" type="textarea" :rows="3" :placeholder="t('简单说明你准备做什么、产出是什么')" /></el-form-item>
+                <el-form-item :label="t('为什么想做 / 需要什么协助')"><el-input v-model="taskCreateForm.reason" type="textarea" :rows="2" :placeholder="t('例如：我擅长前端，想负责页面实现；需要队友提供接口字段')" /></el-form-item>
                 <div class="task-form-grid">
-                  <el-form-item label="难度"><el-input-number v-model="taskCreateForm.difficulty" :min="1" :max="5" /></el-form-item>
-                  <el-form-item label="预计工时"><el-input-number v-model="taskCreateForm.estimated_hours" :min="0.5" :max="80" :step="0.5" /></el-form-item>
-                  <el-form-item label="截止日期"><el-date-picker v-model="taskCreateForm.deadline" value-format="YYYY-MM-DD" type="date" placeholder="选择日期" style="width:100%" /></el-form-item>
+                  <el-form-item :label="t('难度')"><el-input-number v-model="taskCreateForm.difficulty" :min="1" :max="5" /></el-form-item>
+                  <el-form-item :label="t('预计工时')"><el-input-number v-model="taskCreateForm.estimated_hours" :min="0.5" :max="80" :step="0.5" /></el-form-item>
+                  <el-form-item :label="t('截止日期')"><el-date-picker v-model="taskCreateForm.deadline" value-format="YYYY-MM-DD" type="date" :placeholder="t('选择日期')" style="width:100%" /></el-form-item>
                 </div>
-                <el-button type="primary" :loading="loading" @click="createStudentTask">创建并认领任务</el-button>
+                <el-button type="primary" :loading="loading" @click="createStudentTask">{{ t('创建并认领任务') }}</el-button>
               </el-form>
             </div>
             <div v-if="personalAlerts.length" class="card alert-list">
-              <h3>截止预警</h3>
+              <h3>{{ t('截止预警') }}</h3>
               <div v-for="a in personalAlerts" :key="a.task_id" class="alert-item" :class="a.level">
                 <strong>{{ a.task_name }}</strong> — {{ a.message }}
               </div>
             </div>
             <div class="card">
-              <h3>我的子任务</h3>
-              <p class="hint">系统按你的能力与偏好分配子任务。请更新完成百分比；逾期或滞后会在上方预警，队友在团队页可见你的进度。</p>
+              <h3>{{ t('我的子任务') }}</h3>
+              <p class="hint">{{ t('系统按你的能力与偏好分配子任务。请更新完成百分比；逾期或滞后会在上方预警，队友在团队页可见你的进度。') }}</p>
               <el-table v-if="(personal.tasks||[]).length" :data="personal.tasks" stripe>
-                <el-table-column prop="task_name" label="子任务" min-width="140" />
-                <el-table-column label="分配依据" min-width="200">
+                <el-table-column prop="task_name" :label="t('子任务')" min-width="140" />
+                <el-table-column :label="t('分配依据')" min-width="200">
                   <template #default="{row}"><span class="explain-text">{{ row.assign_reason || '—' }}</span></template>
                 </el-table-column>
-                <el-table-column label="截止" width="110"><template #default="{row}">{{ formatDeadline(row.deadline) }}</template></el-table-column>
-                <el-table-column label="风险" width="80"><template #default="{row}"><el-tag v-if="row.risk" :type="riskTagType(row.risk.level)" size="small">{{ row.risk.label }}</el-tag></template></el-table-column>
-                <el-table-column label="进度" min-width="140"><template #default="{row}"><el-progress :percentage="row.progress||0" /></template></el-table-column>
-                <el-table-column label="操作" width="180">
+                <el-table-column :label="t('截止')" width="110"><template #default="{row}">{{ formatDeadline(row.deadline) }}</template></el-table-column>
+                <el-table-column :label="t('风险')" width="80"><template #default="{row}"><el-tag v-if="row.risk" :type="riskTagType(row.risk.level)" size="small">{{ row.risk.label }}</el-tag></template></el-table-column>
+                <el-table-column :label="t('进度')" min-width="140"><template #default="{row}"><el-progress :percentage="row.progress||0" /></template></el-table-column>
+                <el-table-column :label="t('操作')" width="180">
                   <template #default="{row}">
                     <el-button size="small" @click="updateProgress(row.id, Math.min(100,(row.progress||0)+10))">+10%</el-button>
-                    <el-button size="small" type="primary" plain @click="updateProgress(row.id, 100)">完成</el-button>
-                    <el-button size="small" type="warning" plain @click="submitTaskFeedback(row)">反馈</el-button>
+                    <el-button size="small" type="primary" plain @click="updateProgress(row.id, 100)">{{ t('完成') }}</el-button>
+                    <el-button size="small" type="warning" plain @click="submitTaskFeedback(row)">{{ t('反馈') }}</el-button>
                   </template>
                 </el-table-column>
               </el-table>
-              <el-empty v-else description="暂无任务。加入小组并由老师分配任务后显示。" />
+              <el-empty v-else :description="t('暂无任务。加入小组并由老师分配任务后显示。')" />
             </div>
             <div class="card">
-              <h3>全组任务动态</h3>
-              <p class="hint">这里展示你所在小组的所有任务，包含老师分配和同学主动创建的任务。</p>
+              <h3>{{ t('全组任务动态') }}</h3>
+              <p class="hint">{{ t('这里展示你所在小组的所有任务，包含老师分配和同学主动创建的任务。') }}</p>
               <el-table v-if="(personal.team_tasks||[]).length" :data="personal.team_tasks" stripe>
-                <el-table-column prop="task_name" label="任务" min-width="150" />
-                <el-table-column label="负责人" width="110"><template #default="{row}">{{ row.assignee_id===user?.id ? '我' : ('用户' + row.assignee_id) }}</template></el-table-column>
-                <el-table-column label="说明" min-width="220"><template #default="{row}"><span class="explain-text">{{ row.assign_reason || row.description || '—' }}</span></template></el-table-column>
-                <el-table-column label="截止" width="110"><template #default="{row}">{{ formatDeadline(row.deadline) }}</template></el-table-column>
-                <el-table-column label="进度" width="150"><template #default="{row}"><el-progress :percentage="row.progress||0" /></template></el-table-column>
+                <el-table-column prop="task_name" :label="t('任务')" min-width="150" />
+                <el-table-column :label="t('负责人')" width="110"><template #default="{row}">{{ row.assignee_id===user?.id ? t('我') : (t('用户') + row.assignee_id) }}</template></el-table-column>
+                <el-table-column :label="t('说明')" min-width="220"><template #default="{row}"><span class="explain-text">{{ row.assign_reason || row.description || '—' }}</span></template></el-table-column>
+                <el-table-column :label="t('截止')" width="110"><template #default="{row}">{{ formatDeadline(row.deadline) }}</template></el-table-column>
+                <el-table-column :label="t('进度')" width="150"><template #default="{row}"><el-progress :percentage="row.progress||0" /></template></el-table-column>
               </el-table>
-              <el-empty v-else description="暂无小组任务。" />
+              <el-empty v-else :description="t('暂无小组任务。')" />
             </div>
           </template>
 
           <template v-if="page==='community'">
             <div class="card">
-              <h3>发布学习动态</h3>
-              <p class="hint">分享项目经验、兴趣方向、学习资料或组队想法；点赞、收藏、评论会形成你的被动画像标签。</p>
-              <el-input v-model="postForm.title" placeholder="标题（可选）" style="margin-bottom:8px" />
-              <el-input v-model="postForm.content" type="textarea" :rows="4" maxlength="2000" show-word-limit placeholder="写下你感兴趣的方向、正在做的项目、想寻找的队友..." />
-              <el-select v-model="postForm.tags" multiple filterable placeholder="选择帖子标签" style="width:100%;margin-top:8px">
+              <h3>{{ t('发布学习动态') }}</h3>
+              <p class="hint">{{ t('分享项目经验、兴趣方向、学习资料或组队想法；点赞、收藏、评论会形成你的被动画像标签。') }}</p>
+              <el-input v-model="postForm.title" :placeholder="t('标题（可选）')" style="margin-bottom:8px" />
+              <el-input v-model="postForm.content" type="textarea" :rows="4" maxlength="2000" show-word-limit :placeholder="t('写下你感兴趣的方向、正在做的项目、想寻找的队友...')" />
+              <el-select v-model="postForm.tags" multiple filterable :placeholder="t('选择帖子标签')" style="width:100%;margin-top:8px">
                 <el-option v-for="t in [...tagCatalog.knowledge,...tagCatalog.skill,...tagCatalog.collab]" :key="t.id" :label="t.name" :value="t.name" />
               </el-select>
               <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
                 <input type="file" multiple accept="image/*,video/mp4" @change="onPostMedia" />
-                <el-switch v-model="postForm.is_anonymous" active-text="匿名发布" />
-                <el-button type="primary" :loading="loading" @click="createPost">发布</el-button>
+                <el-switch v-model="postForm.is_anonymous" :active-text="t('匿名发布')" />
+                <el-button type="primary" :loading="loading" @click="createPost">{{ t('发布') }}</el-button>
               </div>
             </div>
             <div v-for="p in communityFeed" :key="p.id" class="card community-card">
@@ -2171,33 +2492,47 @@ const App = {
               </div>
               <div style="margin-top:8px"><el-tag v-for="t in p.tags" :key="t.name" style="margin:3px">{{ t.name }}</el-tag></div>
               <div style="margin-top:12px;display:flex;gap:8px">
-                <el-button size="small" @click="interactPost(p, 'like')">点赞 {{ p.stats?.likes || 0 }}</el-button>
-                <el-button size="small" @click="interactPost(p, 'favorite')">收藏 {{ p.stats?.favorites || 0 }}</el-button>
-                <el-button v-if="p.user_id && p.user_id!==user?.id" size="small" type="primary" plain @click="startChat(p.user_id)">发消息</el-button>
+                <el-button size="small" @click="interactPost(p, 'like')">{{ t('点赞') }} {{ p.stats?.likes || 0 }}</el-button>
+                <el-button size="small" @click="interactPost(p, 'favorite')">{{ t('收藏') }} {{ p.stats?.favorites || 0 }}</el-button>
+                <el-button size="small" @click="toggleComments(p)">{{ expandedComments[p.id] ? t('收起评论') : t('查看评论') }} {{ p.stats?.comments || 0 }}</el-button>
+                <el-button v-if="p.user_id && p.user_id!==user?.id" size="small" type="primary" plain @click="startChat(p.user_id)">{{ t('发消息') }}</el-button>
+              </div>
+              <div v-if="expandedComments[p.id]" class="comment-panel" style="margin-top:12px;border-top:1px solid #e5e7eb;padding-top:12px">
+                <div v-if="(p.comments||[]).length" style="display:grid;gap:8px;margin-bottom:10px">
+                  <div v-for="c in p.comments" :key="c.id" style="background:#f8fafc;border-radius:10px;padding:10px">
+                    <strong>{{ c.author || t('同学') }}</strong>
+                    <p style="margin:4px 0 0">{{ c.content }}</p>
+                  </div>
+                </div>
+                <el-empty v-else :description="t('暂无评论，欢迎补充观点。')" />
+                <div style="display:flex;gap:8px;margin-top:10px">
+                  <el-input v-model="commentInputs[p.id]" :placeholder="t('写下你的评论，补充经验或组队想法')" @keyup.enter="submitComment(p)" />
+                  <el-button type="primary" :loading="loading" @click="submitComment(p)">{{ t('提交评论') }}</el-button>
+                </div>
               </div>
             </div>
           </template>
 
           <template v-if="page==='messages'">
             <div class="card">
-              <h3>会话列表</h3>
-              <el-table :data="conversations" empty-text="暂无会话，可在学习社区中给同学发消息">
-                <el-table-column label="同学"><template #default="{row}">{{ row.other_user?.name || ('用户' + row.other_user_id) }}</template></el-table-column>
-                <el-table-column label="最后消息"><template #default="{row}">{{ row.last_message?.content || '—' }}</template></el-table-column>
-                <el-table-column label="未读" width="80"><template #default="{row}"><el-tag v-if="row.unread">{{ row.unread }}</el-tag></template></el-table-column>
-                <el-table-column label="操作" width="120"><template #default="{row}"><el-button size="small" @click="openConversation(row)">打开</el-button></template></el-table-column>
+              <h3>{{ t('会话列表') }}</h3>
+              <el-table :data="conversations" :empty-text="t('暂无会话，可在学习社区中给同学发消息')">
+                <el-table-column :label="t('同学')"><template #default="{row}">{{ row.other_user?.name || (t('用户') + row.other_user_id) }}</template></el-table-column>
+                <el-table-column :label="t('最后消息')"><template #default="{row}">{{ row.last_message?.content || '—' }}</template></el-table-column>
+                <el-table-column :label="t('未读')" width="80"><template #default="{row}"><el-tag v-if="row.unread">{{ row.unread }}</el-tag></template></el-table-column>
+                <el-table-column :label="t('操作')" width="120"><template #default="{row}"><el-button size="small" @click="openConversation(row)">{{ t('打开') }}</el-button></template></el-table-column>
               </el-table>
             </div>
             <div v-if="chatConversationId" class="card">
-              <h3>聊天</h3>
+              <h3>{{ t('聊天') }}</h3>
               <div style="max-height:360px;overflow:auto;border:1px solid #e5e7eb;border-radius:12px;padding:12px">
                 <div v-for="m in messages" :key="m.id" :style="{textAlign:m.sender_id===user?.id?'right':'left',margin:'8px 0'}">
                   <span style="display:inline-block;background:#f1f5f9;padding:8px 12px;border-radius:12px">{{ m.content }}</span>
                 </div>
               </div>
               <div style="display:flex;gap:8px;margin-top:12px">
-                <el-input v-model="chatInput" placeholder="输入消息" @keyup.enter="sendMessage" />
-                <el-button type="primary" @click="sendMessage">发送</el-button>
+                <el-input v-model="chatInput" :placeholder="t('输入消息')" @keyup.enter="sendMessage" />
+                <el-button type="primary" @click="sendMessage">{{ t('发送') }}</el-button>
               </div>
             </div>
           </template>
@@ -2205,21 +2540,21 @@ const App = {
           <template v-if="page==='account'">
             <div class="account-hero">
               <div class="account-avatar-lg">
-                <img v-if="userAvatar(user)" :src="userAvatar(user)" alt="头像" />
+                <img v-if="userAvatar(user)" :src="userAvatar(user)" :alt="t('头像')" />
                 <span v-else>{{ userInitial(user?.name) }}</span>
               </div>
               <div>
                 <h2>{{ user?.name }}</h2>
                 <p class="profile-headline">{{ user?.headline || '还没有设置个人标题' }}</p>
                 <p>{{ user?.bio || '完善头像和个人介绍，让同学更容易认识你。' }}</p>
-                <el-tag>学员账号：{{ user?.account }}</el-tag>
+                <el-tag>{{ t('学员账号：') }} {{ user?.account }}</el-tag>
                 <el-tag type="success" v-if="user?.availability">{{ user.availability }}</el-tag>
               </div>
             </div>
             <div class="profile-showcase">
-              <div class="showcase-item"><b>研究兴趣</b><span>{{ user?.research_interest || '填写你的研究方向、项目兴趣或想探索的问题' }}</span></div>
-              <div class="showcase-item"><b>作品链接</b><a v-if="user?.portfolio_url" :href="user.portfolio_url" target="_blank">Portfolio</a><span v-else>未填写</span></div>
-              <div class="showcase-item"><b>代码主页</b><a v-if="user?.github_url" :href="user.github_url" target="_blank">GitHub / Lab</a><span v-else>未填写</span></div>
+              <div class="showcase-item"><b>{{ t('研究兴趣') }}</b><span>{{ user?.research_interest || '填写你的研究方向、项目兴趣或想探索的问题' }}</span></div>
+              <div class="showcase-item"><b>{{ t('作品链接') }}</b><a v-if="user?.portfolio_url" :href="user.portfolio_url" target="_blank">Portfolio</a><span v-else>{{ t('未填写') }}</span></div>
+              <div class="showcase-item"><b>{{ t('代码主页') }}</b><a v-if="user?.github_url" :href="user.github_url" target="_blank">GitHub / Lab</a><span v-else>{{ t('未填写') }}</span></div>
             </div>
             <div class="account-grid">
               <div class="card">
@@ -2231,28 +2566,28 @@ const App = {
               </div>
               <div class="card">
                 <h3>{{ t('profileCard') }}</h3>
-                <p class="hint">头像支持图片链接；留空时会自动使用姓名首字作为头像。</p>
+                <p class="hint">{{ t('头像支持图片链接；留空时会自动使用姓名首字作为头像。') }}</p>
                 <el-form label-position="top">
-                  <el-form-item label="姓名"><el-input v-model="accountForm.name" maxlength="64" /></el-form-item>
-                  <el-form-item label="个人标题"><el-input v-model="accountForm.headline" maxlength="120" placeholder="如：数据分析 / 智慧教育方向研究生" /></el-form-item>
-                  <el-form-item label="头像链接"><el-input v-model="accountForm.avatar_url" placeholder="https://..." maxlength="512" /></el-form-item>
-                  <el-form-item label="个人介绍"><el-input v-model="accountForm.bio" type="textarea" :rows="4" maxlength="240" show-word-limit placeholder="写一句你的项目兴趣、擅长方向或希望承担的角色" /></el-form-item>
-                  <el-form-item label="研究方向 / 项目兴趣"><el-input v-model="accountForm.research_interest" maxlength="240" placeholder="如：学习分析、智能教育、大模型应用" /></el-form-item>
-                  <el-form-item label="可协作时间"><el-input v-model="accountForm.availability" maxlength="120" placeholder="如：每周 6-8 小时，周三/周末可开会" /></el-form-item>
-                  <el-form-item label="作品集链接"><el-input v-model="accountForm.portfolio_url" placeholder="https://..." maxlength="512" /></el-form-item>
-                  <el-form-item label="GitHub / 实验室主页"><el-input v-model="accountForm.github_url" placeholder="https://..." maxlength="512" /></el-form-item>
-                  <el-form-item label="主页主题"><el-select v-model="accountForm.display_theme" style="width:100%"><el-option label="Aurora 极光" value="aurora" /><el-option label="Ocean 海蓝" value="ocean" /><el-option label="Sunrise 晨光" value="sunrise" /></el-select></el-form-item>
+                  <el-form-item :label="t('姓名')"><el-input v-model="accountForm.name" maxlength="64" /></el-form-item>
+                  <el-form-item :label="t('个人标题')"><el-input v-model="accountForm.headline" maxlength="120" :placeholder="t('如：数据分析 / 智慧教育方向研究生')" /></el-form-item>
+                  <el-form-item :label="t('头像链接')"><el-input v-model="accountForm.avatar_url" placeholder="https://..." maxlength="512" /></el-form-item>
+                  <el-form-item :label="t('个人介绍')"><el-input v-model="accountForm.bio" type="textarea" :rows="4" maxlength="240" show-word-limit :placeholder="t('写一句你的项目兴趣、擅长方向或希望承担的角色')" /></el-form-item>
+                  <el-form-item :label="t('研究方向 / 项目兴趣')"><el-input v-model="accountForm.research_interest" maxlength="240" :placeholder="t('如：学习分析、智能教育、大模型应用')" /></el-form-item>
+                  <el-form-item :label="t('可协作时间')"><el-input v-model="accountForm.availability" maxlength="120" :placeholder="t('如：每周 6-8 小时，周三/周末可开会')" /></el-form-item>
+                  <el-form-item :label="t('作品集链接')"><el-input v-model="accountForm.portfolio_url" placeholder="https://..." maxlength="512" /></el-form-item>
+                  <el-form-item :label="t('GitHub / 实验室主页')"><el-input v-model="accountForm.github_url" placeholder="https://..." maxlength="512" /></el-form-item>
+                  <el-form-item :label="t('主页主题')"><el-select v-model="accountForm.display_theme" style="width:100%"><el-option :label="t('Aurora 极光')" value="aurora" /><el-option :label="t('Ocean 海蓝')" value="ocean" /><el-option :label="t('Sunrise 晨光')" value="sunrise" /></el-select></el-form-item>
                   <el-button type="primary" :loading="loading" @click="saveAccount">{{ t('saveProfile') }}</el-button>
                 </el-form>
               </div>
               <div class="card">
-                <h3>修改密码</h3>
-                <p class="hint">新密码至少 6 位，保存后下次登录生效。</p>
+                <h3>{{ t('修改密码') }}</h3>
+                <p class="hint">{{ t('新密码至少 6 位，保存后下次登录生效。') }}</p>
                 <el-form label-position="top">
-                  <el-form-item label="当前密码"><el-input v-model="passwordForm.old_password" type="password" show-password /></el-form-item>
-                  <el-form-item label="新密码"><el-input v-model="passwordForm.new_password" type="password" show-password /></el-form-item>
-                  <el-form-item label="确认新密码"><el-input v-model="passwordForm.confirm_password" type="password" show-password @keyup.enter="changePassword" /></el-form-item>
-                  <el-button type="primary" plain :loading="loading" @click="changePassword">修改密码</el-button>
+                  <el-form-item :label="t('当前密码')"><el-input v-model="passwordForm.old_password" type="password" show-password /></el-form-item>
+                  <el-form-item :label="t('新密码')"><el-input v-model="passwordForm.new_password" type="password" show-password /></el-form-item>
+                  <el-form-item :label="t('确认新密码')"><el-input v-model="passwordForm.confirm_password" type="password" show-password @keyup.enter="changePassword" /></el-form-item>
+                  <el-button type="primary" plain :loading="loading" @click="changePassword">{{ t('修改密码') }}</el-button>
                 </el-form>
               </div>
             </div>
@@ -2265,10 +2600,10 @@ const App = {
           <div class="calc-orbit">
             <span></span><span></span><span></span>
           </div>
-          <h3>正在计算适合你的角色方向</h3>
+          <h3>{{ t('正在计算适合你的角色方向') }}</h3>
           <p>{{ calculateText }}</p>
           <el-progress :percentage="calculateProgress" :stroke-width="12" striped striped-flow />
-          <div class="calc-tips">系统正在综合主动标签、自由描述、被动标签与任务表现，稍等片刻。</div>
+          <div class="calc-tips">{{ t('系统正在综合主动标签、自由描述、被动标签与任务表现，稍等片刻。') }}</div>
         </div>
       </el-dialog>
     </div>

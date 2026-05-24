@@ -45,6 +45,11 @@
       background: linear-gradient(135deg, #6366f1, #06b6d4);
       box-shadow: 0 16px 34px rgba(99,102,241,.26);
     }
+    .boot-mark svg {
+      width: 28px;
+      height: 28px;
+      display: block;
+    }
     .boot-kicker {
       margin: 0 0 8px;
       color: #4f46e5;
@@ -132,7 +137,14 @@
   <div id="app">
     <div id="app-loading" aria-live="polite">
       <section class="boot-card">
-        <div class="boot-mark">?</div>
+        <div class="boot-mark" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="6.5" r="2.4" fill="#fff"/>
+            <circle cx="6.5" cy="16.5" r="2.4" fill="#fff" opacity="0.92"/>
+            <circle cx="17.5" cy="16.5" r="2.4" fill="#fff" opacity="0.92"/>
+            <path d="M12 9v1.8M12 10.8 8 14.2M12 10.8l4 3.4" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+        </div>
         <p class="boot-kicker">组队超脑 Classroom Runtime</p>
         <h1>正在进入学生协作空间</h1>
         <p class="boot-subtitle">正在为你准备本次课堂项目工作台，请稍候。</p>
@@ -166,7 +178,14 @@
       document.write('<script src="https://unpkg.com/axios@1.7.4/dist/axios.min.js"><\/script>');
     }
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
+  <script>
+    if (typeof OpenCC === 'undefined') {
+      document.write('<script src="https://unpkg.com/opencc-js@1.0.5/dist/umd/full.js"><\/script>');
+    }
+  </script>
+  <script src="assets/i18n-core.js"></script>
   <script src="assets/config.js"></script>
-  <script src="assets/app.js?v=5.0"></script>
+  <script src="assets/app.js?v=5.4"></script>
 </body>
 </html>

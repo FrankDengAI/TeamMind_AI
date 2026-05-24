@@ -373,6 +373,17 @@ def _seed_demo_content():
     db.session.commit()
 
 
+def _load_class_roster_names():
+    """加载班级演示学生真实姓名与简介（database/seeds/class_roster_names.json）。"""
+    import json
+    from pathlib import Path
+
+    seed_path = Path(__file__).resolve().parents[2] / "database" / "seeds" / "class_roster_names.json"
+    if seed_path.is_file():
+        return json.loads(seed_path.read_text(encoding="utf-8"))
+    return {}
+
+
 def _seed_demo_classes():
     """首次运行时初始化大学班级、演示学生与画像."""
     import json
@@ -384,6 +395,7 @@ def _seed_demo_classes():
     if Classroom.query.first():
         return
 
+    roster_names = _load_class_roster_names()
     password_hash = bcrypt.hashpw(b"demo123", bcrypt.gensalt()).decode()
     admin = User.query.filter_by(role="admin").first()
     class_specs = [
@@ -408,18 +420,24 @@ def _seed_demo_classes():
         )
         db.session.add(cls)
         db.session.flush()
+        prefix_roster = roster_names.get(prefix) or []
+        headline_tpl = f"{major} · {grade}级本科生"
         for i in range(1, 13):
             account = f"{prefix}_{i:02d}"
+            roster_item = prefix_roster[i - 1] if i - 1 < len(prefix_roster) else {}
+            display_name = roster_item.get("name") or f"学生{i:02d}"
+            display_bio = roster_item.get("bio") or f"{major}专业在读，参与{course}课程项目协作。"
+            display_interest = roster_item.get("research_interest") or course
             user = User.query.filter_by(account=account).first()
             if not user:
                 user = User(
-                    name=f"{major[:2]}同学{i:02d}",
+                    name=display_name,
                     account=account,
                     password_hash=password_hash,
                     role="user",
-                    headline=f"{class_name} 学生",
-                    bio="演示学生账号，可用于测试班级申请、组队和任务协作。",
-                    research_interest=course,
+                    headline=headline_tpl,
+                    bio=display_bio,
+                    research_interest=display_interest,
                 )
                 db.session.add(user)
                 db.session.flush()

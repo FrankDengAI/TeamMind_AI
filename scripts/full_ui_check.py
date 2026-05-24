@@ -5,8 +5,16 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 import urllib.error
 import urllib.request
+
+STUDENT_DEMO_ACCOUNTS = [
+    ("zhangsan", "123456"),
+    ("student01", "123456"),
+    ("student02", "123456"),
+]
+ACTIVE_STUDENT_ACCOUNT = STUDENT_DEMO_ACCOUNTS[0]
 
 
 def http_json(method: str, url: str, data=None, token: str | None = None) -> tuple[int, dict | list | str]:
@@ -78,6 +86,7 @@ def check_static_pages(base: str, rep: Reporter) -> None:
 
 
 def check_api_flow(base: str, rep: Reporter) -> tuple[str | None, str | None]:
+    global ACTIVE_STUDENT_ACCOUNT
     admin_token = student_token = None
 
     code, data = http_json("POST", f"{base}/api/auth/login", {"account": "admin", "password": "admin123"})
@@ -103,13 +112,29 @@ def check_api_flow(base: str, rep: Reporter) -> tuple[str | None, str | None]:
         else:
             rep.fail(f"api:admin-get:{path.split('/')[-1]}", f"{code} {data}")
 
-    code, data = http_json("POST", f"{base}/api/auth/login", {"account": "zhangsan", "password": "123456"})
-    if code == 200 and isinstance(data, dict) and data.get("token"):
-        student_token = data["token"]
-        rep.ok("api:student-login")
-    else:
-        rep.fail("api:student-login", f"{code} {data}")
-        return admin_token, None
+    last_student_error = None
+    for account, password in STUDENT_DEMO_ACCOUNTS:
+        code, data = http_json("POST", f"{base}/api/auth/login", {"account": account, "password": password})
+        if code == 200 and isinstance(data, dict) and data.get("token"):
+            student_token = data["token"]
+            ACTIVE_STUDENT_ACCOUNT = (account, password)
+            rep.ok(f"api:student-login:{account}")
+            break
+        last_student_error = f"{account}: {code} {data}"
+    if not student_token:
+        account = f"teammind_smoke_{int(time.time())}"
+        code, data = http_json(
+            "POST",
+            f"{base}/api/auth/register",
+            {"name": "冒烟测试学生", "account": account, "password": "123456"},
+        )
+        if code in {200, 201} and isinstance(data, dict) and data.get("token"):
+            student_token = data["token"]
+            ACTIVE_STUDENT_ACCOUNT = (account, "123456")
+            rep.ok(f"api:student-register:{account}")
+        else:
+            rep.fail("api:student-login", last_student_error or f"register failed: {code} {data}")
+            return admin_token, None
 
     for path in ["/api/auth/me", "/api/profile/tags/catalog", "/api/team-activities/active", "/api/community/feed"]:
         code, data = http_json("GET", f"{base}{path}", token=student_token)
@@ -201,8 +226,8 @@ def run_playwright(base: str, rep: Reporter) -> None:
                 goto(student, base + "/student/")
                 student.wait_for_selector(".el-input__inner", timeout=15000)
                 inputs = student.locator(".el-input__inner")
-                inputs.nth(0).fill("zhangsan")
-                inputs.nth(1).fill("123456")
+                inputs.nth(0).fill(ACTIVE_STUDENT_ACCOUNT[0])
+                inputs.nth(1).fill(ACTIVE_STUDENT_ACCOUNT[1])
                 student.locator("button.el-button--primary").first.click(timeout=8000)
                 student.wait_for_selector(".layout", timeout=20000)
                 for idx in range(min(6, student.locator(".nav-item").count())):

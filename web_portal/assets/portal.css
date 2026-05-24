@@ -532,6 +532,11 @@ button:hover, .button:hover { transform: translateY(-1px); background: rgba(255,
   background: conic-gradient(from 140deg, var(--cyan), var(--primary), var(--pink), var(--gold), var(--cyan));
   box-shadow: 0 0 52px rgba(56, 232, 255, 0.38);
 }
+.launch-mark span svg {
+  width: 26px;
+  height: 26px;
+  display: block;
+}
 .launch-mark span {
   width: 54px;
   height: 54px;
@@ -539,8 +544,6 @@ button:hover, .button:hover { transform: translateY(-1px); background: rgba(255,
   display: grid;
   place-items: center;
   background: rgba(5, 8, 22, 0.88);
-  font-size: 24px;
-  font-weight: 1000;
 }
 .launch-kicker {
   margin: 0 0 8px;
