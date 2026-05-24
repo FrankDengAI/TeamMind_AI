@@ -13,7 +13,8 @@ node_modules/
 frontend/dist/
 
 # Local data
-data/
+data/*
+!data/.gitkeep
 *.db
 
 # IDE

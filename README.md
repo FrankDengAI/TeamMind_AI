@@ -464,6 +464,14 @@ Internet / Campus LAN
 
 完整部署说明见 / Full deployment guide: [docs/DEPLOY.md](docs/DEPLOY.md)
 
+### Zeabur 公网一键部署 / Zeabur Public Deployment
+
+仓库已包含 [`zbpack.json`](zbpack.json)、[`.env.example`](.env.example) 与 [`zeabur.template.yaml`](zeabur.template.yaml)。在 [Zeabur](https://zeabur.com/zh-CN/) 导入 `FrankDengAI/TeamMind_AI` 后，配置环境变量并挂载 Volume 至 `/src/data` 即可。部署验证：
+
+```bash
+python scripts/verify_zeabur_deploy.py --base-url https://your-app.zeabur.app
+```
+
 ---
 
 ## 常用命令 / Common Commands

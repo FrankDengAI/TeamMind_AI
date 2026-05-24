@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=https://schema.zeabur.app/template.json
+# TeamMind AI — Zeabur 一键部署模板（Git 源码 + 持久化 Volume）
+# 用法：Zeabur 控制台 → Deploy Template → 粘贴本文件内容，或 Fork 后修改 source.repo 为你的仓库。
+apiVersion: zeabur.com/v1
+kind: Template
+metadata:
+  name: TeamMind AI
+spec:
+  description: 组队超脑 — AI 智能组队与任务匹配协作平台（Flask + SQLite + 内置三端 UI）
+  icon: https://raw.githubusercontent.com/FrankDengAI/TeamMind_AI/master/web_portal/assets/favicon.svg
+  variables:
+    - key: PUBLIC_DOMAIN
+      type: DOMAIN
+      name: 公网域名
+      description: TeamMind AI 对外访问域名（Zeabur 会自动分配 *.zeabur.app）
+    - key: SECRET_KEY
+      type: STRING
+      name: Flask 密钥
+      description: 至少 32 位随机字符串
+    - key: JWT_SECRET_KEY
+      type: STRING
+      name: JWT 密钥
+      description: 至少 32 位随机字符串
+    - key: DEEPSEEK_API_KEY
+      type: STRING
+      name: DeepSeek API Key
+      description: 可选；未填时 LLM 画像增强会降级为规则评分
+  services:
+    - name: teammind
+      template: GIT
+      spec:
+        source:
+          repo: FrankDengAI/TeamMind_AI
+        ports:
+          - id: web
+            port: 8080
+            type: HTTP
+        volumes:
+          - id: data
+            dir: /src/data
+        env:
+          TEAMMIND_ENV:
+            default: production
+          SECRET_KEY:
+            default: ${SECRET_KEY}
+          JWT_SECRET_KEY:
+            default: ${JWT_SECRET_KEY}
+          TEAMMIND_CORS_ORIGINS:
+            default: https://${PUBLIC_DOMAIN}
+          TEAMMIND_SOCKETIO_CORS_ORIGINS:
+            default: https://${PUBLIC_DOMAIN}
+          DEEPSEEK_API_KEY:
+            default: ${DEEPSEEK_API_KEY}
+          DEEPSEEK_BASE_URL:
+            default: https://api.deepseek.com
+          DEEPSEEK_MODEL:
+            default: deepseek-chat
+          DEEPSEEK_ENABLED:
+            default: "1"
+localization:
+  zh-CN:
+    spec:
+      description: 组队超脑 — AI 智能组队与任务匹配协作平台

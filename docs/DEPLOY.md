@@ -54,9 +54,23 @@ python scripts/demo_flow_20students.py --reset
 
 脚本结束后打印各组名单与角色；用 `student01` / `123456` 进入 `/student/` 验证学员端。
 
-## 2.2 Zeabur 部署
+## 2.2 Zeabur 公网部署（逐步操作）
 
-不要把 DeepSeek Key、JWT 密钥或 Flask 密钥写入 `config.py`。在 Zeabur 项目的服务环境变量中配置：
+仓库已内置 Zeabur 构建配置，无需手动设置 `ZBPACK_*` 环境变量：
+
+- [`zbpack.json`](../zbpack.json) — 构建与启动命令
+- [`.env.example`](../.env.example) — 生产环境变量模板
+- [`zeabur.template.yaml`](../zeabur.template.yaml) — 可选一键部署模板（含 Volume）
+
+### 步骤 1：导入 GitHub 仓库
+
+1. 打开 [Zeabur 控制台](https://zeabur.com/zh-CN/)
+2. **Add Service** → **GitHub** → 选择 `FrankDengAI/TeamMind_AI`
+3. Zeabur 会读取根目录 [`zbpack.json`](../zbpack.json) 自动安装依赖并执行 `python main.py --host 0.0.0.0 --no-browser`
+
+### 步骤 2：配置环境变量
+
+不要把 DeepSeek Key、JWT 密钥或 Flask 密钥写入 `config.py`。在 Zeabur **Variables** 面板添加（可参考 [`.env.example`](../.env.example)）：
 
 | 变量 | 建议值 |
 |------|--------|
@@ -65,22 +79,32 @@ python scripts/demo_flow_20students.py --reset
 | `JWT_SECRET_KEY` | 至少 32 位随机字符串 |
 | `TEAMMIND_CORS_ORIGINS` | 你的 Zeabur HTTPS 域名，例如 `https://your-app.zeabur.app` |
 | `TEAMMIND_SOCKETIO_CORS_ORIGINS` | 同上 |
-| `DEEPSEEK_API_KEY` | 你的 DeepSeek API Key |
+| `DEEPSEEK_API_KEY` | 你的 DeepSeek API Key（正式生产建议配置） |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` |
 | `DEEPSEEK_MODEL` | `deepseek-chat` |
 | `DEEPSEEK_ENABLED` | `1` |
 
-Zeabur 通常会注入 `PORT` 环境变量；启动器会自动读取它。启动命令建议：
+> `TEAMMIND_ENV=production` 时缺少 `SECRET_KEY`、`JWT_SECRET_KEY` 或 `TEAMMIND_CORS_ORIGINS` 会导致服务启动失败。
+
+### 步骤 3：绑定公网域名
+
+1. 服务页 → **Networking / Domains** → 生成 `*.zeabur.app` 域名
+2. 将完整 HTTPS 地址填入 `TEAMMIND_CORS_ORIGINS` 与 `TEAMMIND_SOCKETIO_CORS_ORIGINS`
+3. 重新部署（Redeploy）
+
+### 步骤 4：挂载持久化 Volume（正式生产必做）
+
+Zeabur 容器默认无状态，不挂载 Volume 时 `data/teammind.db` 与上传文件会在重启后丢失。
+
+1. 服务页 → **Volumes** → **Mount Volumes**
+2. **Volume ID**：`data`
+3. **Mount Directory**：`/src/data`
+4. 保存并重启（首次挂载会清空该目录，随后自动初始化数据库）
+
+### 步骤 5：验证部署
 
 ```bash
-python main.py --host 0.0.0.0 --no-browser
-```
-
-如果平台需要拆分安装和启动命令：
-
-```bash
-pip install -r backend/requirements.txt
-python main.py --host 0.0.0.0 --no-browser
+python scripts/verify_zeabur_deploy.py --base-url https://your-app.zeabur.app
 ```
 
 部署完成后访问：
@@ -89,6 +113,16 @@ python main.py --host 0.0.0.0 --no-browser
 - `https://你的域名/admin/`
 - `https://你的域名/student/`
 - `https://你的域名/api/health`
+
+### 步骤 6：生产安全加固
+
+公网暴露后**立即**重置演示账号密码：
+
+```bash
+python scripts/reset_production_passwords.py --admin-password "你的强密码" --include-students --student-password "学生强密码"
+```
+
+或在 Zeabur Shell 中执行相同命令（需已挂载 Volume 且数据库已初始化）。
 
 ## 三、可选参数
 
