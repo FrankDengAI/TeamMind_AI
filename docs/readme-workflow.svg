@@ -1,6 +1,7 @@
-<svg width="1280" height="420" viewBox="0 0 1280 420" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">TeamMind AI Collaboration Workflow</title>
-  <desc id="desc">Closed-loop collaboration workflow for TeamMind AI.</desc>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1280" height="420" viewBox="0 0 1280 420" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="flowTitle flowDesc">
+  <title id="flowTitle">TeamMind AI Collaboration Workflow</title>
+  <desc id="flowDesc">Closed-loop collaboration workflow for TeamMind AI.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="420" gradientUnits="userSpaceOnUse">
       <stop stop-color="#020617"/>
@@ -17,62 +18,62 @@
     </linearGradient>
   </defs>
   <rect width="1280" height="420" rx="28" fill="url(#bg)"/>
-  <text x="640" y="44" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="22" font-weight="800" fill="#FFFFFF">Collaboration Closed Loop</text>
-  <text x="640" y="72" text-anchor="middle" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="15" fill="#94A3B8">?? ? ?? ? ?? ? ?? ? ??</text>
+  <text x="640" y="44" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">Collaboration Closed Loop</text>
+  <text x="640" y="72" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="15" fill="#94A3B8">Profile - Group - Task - Monitor - Assess</text>
 
   <g transform="translate(70 110)">
     <rect width="200" height="220" rx="20" fill="url(#card)" stroke="#67E8F9" stroke-opacity="0.35"/>
     <circle cx="100" cy="52" r="22" fill="#0EA5E9" fill-opacity="0.25"/>
-    <text x="100" y="58" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800" fill="#E0F2FE">01</text>
-    <text x="100" y="98" text-anchor="middle" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#FFFFFF">????</text>
-    <text x="100" y="126" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#94A3B8">Profile</text>
-    <text x="24" y="162" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="13" fill="#CBD5E1">?? · ?? · ??</text>
-    <text x="24" y="186" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="13" fill="#CBD5E1">??????</text>
-    <text x="24" y="210" font-family="Inter, Arial, sans-serif" font-size="12" fill="#64748B">DeepSeek optional</text>
+    <text x="100" y="58" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#E0F2FE">01</text>
+    <text x="100" y="98" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#FFFFFF">Profile</text>
+    <text x="100" y="126" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#94A3B8">Tags + resume</text>
+    <text x="24" y="162" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#CBD5E1">Active + passive tags</text>
+    <text x="24" y="186" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#CBD5E1">3D student portrait</text>
+    <text x="24" y="210" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#64748B">DeepSeek optional</text>
   </g>
 
   <g transform="translate(300 110)">
     <rect width="200" height="220" rx="20" fill="url(#card)" stroke="#A78BFA" stroke-opacity="0.35"/>
     <circle cx="100" cy="52" r="22" fill="#8B5CF6" fill-opacity="0.25"/>
-    <text x="100" y="58" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800" fill="#EDE9FE">02</text>
-    <text x="100" y="98" text-anchor="middle" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#FFFFFF">????</text>
-    <text x="100" y="126" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#94A3B8">Grouping</text>
-    <text x="24" y="162" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="13" fill="#CBD5E1">???? · ????</text>
-    <text x="24" y="186" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="13" fill="#CBD5E1">???????</text>
-    <text x="24" y="210" font-family="Inter, Arial, sans-serif" font-size="12" fill="#64748B">balance score</text>
+    <text x="100" y="58" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#EDE9FE">02</text>
+    <text x="100" y="98" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#FFFFFF">Grouping</text>
+    <text x="100" y="126" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#94A3B8">AI teams</text>
+    <text x="24" y="162" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#CBD5E1">Skill balance</text>
+    <text x="24" y="186" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#CBD5E1">Role complement</text>
+    <text x="24" y="210" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#64748B">balance score</text>
   </g>
 
   <g transform="translate(530 110)">
     <rect width="200" height="220" rx="20" fill="url(#card)" stroke="#34D399" stroke-opacity="0.35"/>
     <circle cx="100" cy="52" r="22" fill="#10B981" fill-opacity="0.25"/>
-    <text x="100" y="58" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800" fill="#D1FAE5">03</text>
-    <text x="100" y="98" text-anchor="middle" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#FFFFFF">????</text>
-    <text x="100" y="126" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#94A3B8">Task Match</text>
-    <text x="24" y="162" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="13" fill="#CBD5E1">?? · ?? · ??</text>
-    <text x="24" y="186" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="13" fill="#CBD5E1">??????</text>
-    <text x="24" y="210" font-family="Inter, Arial, sans-serif" font-size="12" fill="#64748B">assignment reason</text>
+    <text x="100" y="58" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#D1FAE5">03</text>
+    <text x="100" y="98" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#FFFFFF">Task Match</text>
+    <text x="100" y="126" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#94A3B8">Assign + reason</text>
+    <text x="24" y="162" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#CBD5E1">Difficulty fit</text>
+    <text x="24" y="186" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#CBD5E1">Workload balance</text>
+    <text x="24" y="210" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#64748B">assignment reason</text>
   </g>
 
   <g transform="translate(760 110)">
     <rect width="200" height="220" rx="20" fill="url(#card)" stroke="#FBBF24" stroke-opacity="0.35"/>
     <circle cx="100" cy="52" r="22" fill="#F59E0B" fill-opacity="0.25"/>
-    <text x="100" y="58" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800" fill="#FDE68A">04</text>
-    <text x="100" y="98" text-anchor="middle" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#FFFFFF">????</text>
-    <text x="100" y="126" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#94A3B8">Monitoring</text>
-    <text x="24" y="162" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="13" fill="#CBD5E1">?? · ?? · ??</text>
-    <text x="24" y="186" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="13" fill="#CBD5E1">??????</text>
-    <text x="24" y="210" font-family="Inter, Arial, sans-serif" font-size="12" fill="#64748B">APScheduler</text>
+    <text x="100" y="58" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#FDE68A">04</text>
+    <text x="100" y="98" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#FFFFFF">Monitoring</text>
+    <text x="100" y="126" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#94A3B8">Board + alerts</text>
+    <text x="24" y="162" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#CBD5E1">Progress tracking</text>
+    <text x="24" y="186" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#CBD5E1">Risk warnings</text>
+    <text x="24" y="210" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#64748B">APScheduler</text>
   </g>
 
   <g transform="translate(990 110)">
     <rect width="200" height="220" rx="20" fill="url(#card)" stroke="#FB7185" stroke-opacity="0.35"/>
     <circle cx="100" cy="52" r="22" fill="#F43F5E" fill-opacity="0.25"/>
-    <text x="100" y="58" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800" fill="#FECDD3">05</text>
-    <text x="100" y="98" text-anchor="middle" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#FFFFFF">????</text>
-    <text x="100" y="126" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#94A3B8">Assessment</text>
-    <text x="24" y="162" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="13" fill="#CBD5E1">???? · ????</text>
-    <text x="24" y="186" font-family="Microsoft YaHei, Inter, Arial, sans-serif" font-size="13" fill="#CBD5E1">Excel / PDF ??</text>
-    <text x="24" y="210" font-family="Inter, Arial, sans-serif" font-size="12" fill="#64748B">audit trail</text>
+    <text x="100" y="58" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#FECDD3">05</text>
+    <text x="100" y="98" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#FFFFFF">Assessment</text>
+    <text x="100" y="126" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#94A3B8">Reports</text>
+    <text x="24" y="162" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#CBD5E1">Formative evidence</text>
+    <text x="24" y="186" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#CBD5E1">Excel / PDF export</text>
+    <text x="24" y="210" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#64748B">audit trail</text>
   </g>
 
   <path d="M270 220 H300" stroke="url(#flow)" stroke-width="4" stroke-linecap="round"/>
@@ -80,5 +81,5 @@
   <path d="M730 220 H760" stroke="url(#flow)" stroke-width="4" stroke-linecap="round"/>
   <path d="M960 220 H990" stroke="url(#flow)" stroke-width="4" stroke-linecap="round"/>
   <path d="M1090 330 C1090 380 170 380 170 330" stroke="url(#flow)" stroke-width="3" stroke-dasharray="8 8" opacity="0.7"/>
-  <text x="640" y="396" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#CBD5E1">Continuous feedback loop · ??????</text>
+  <text x="640" y="396" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#CBD5E1">Continuous feedback loop</text>
 </svg>

@@ -306,7 +306,7 @@ The script creates 20 demo students, generates profiles, forms teams, assigns ro
 ## 系统架构 / Architecture
 
 <div align="center">
-  <img src="docs/readme-workflow.svg" alt="TeamMind AI workflow and architecture overview" width="100%" />
+  <img src="docs/readme-architecture.svg" alt="TeamMind AI system architecture overview" width="100%" />
 </div>
 
 ### 技术栈 / Tech Stack
