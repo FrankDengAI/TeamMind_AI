@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>组队超脑 · 学员端 | TeamMind AI</title>
+  <meta name="description" content="组队超脑（TeamMind AI）学员端：画像、组队、任务、进度与协作沟通。" />
+  <meta name="application-name" content="组队超脑" />
+  <meta name="theme-color" content="#6366f1" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="assets/favicon.svg" />
+  <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/element-plus/2.8.0/index.min.css" />
+  <link rel="stylesheet" href="assets/style.css?v=4.5" />
+  <style>
+    #app-loading {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 32px;
+      background:
+        radial-gradient(circle at 18% 16%, rgba(99,102,241,.16), transparent 30%),
+        radial-gradient(circle at 82% 12%, rgba(14,165,233,.12), transparent 28%),
+        linear-gradient(135deg, #f8fafc 0%, #eef2ff 48%, #f8fafc 100%);
+      color: #0f172a;
+      font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+    }
+    .boot-card {
+      width: min(520px, 100%);
+      padding: 34px;
+      border: 1px solid rgba(99,102,241,.18);
+      border-radius: 28px;
+      background: rgba(255,255,255,.88);
+      box-shadow: 0 24px 80px rgba(15,23,42,.13);
+      backdrop-filter: blur(18px);
+    }
+    .boot-mark {
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 18px;
+      border-radius: 20px;
+      color: #fff;
+      font-weight: 900;
+      background: linear-gradient(135deg, #6366f1, #06b6d4);
+      box-shadow: 0 16px 34px rgba(99,102,241,.26);
+    }
+    .boot-kicker {
+      margin: 0 0 8px;
+      color: #4f46e5;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .boot-card h1 {
+      margin: 0 0 10px;
+      font-size: clamp(26px, 4vw, 34px);
+      line-height: 1.18;
+      letter-spacing: -.03em;
+    }
+    .boot-subtitle {
+      margin: 0 0 24px;
+      color: #64748b;
+      line-height: 1.7;
+    }
+    .boot-progress {
+      height: 10px;
+      overflow: hidden;
+      margin-bottom: 22px;
+      border-radius: 999px;
+      background: #e0e7ff;
+    }
+    .boot-progress span {
+      display: block;
+      width: 42%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #6366f1, #06b6d4, #22c55e);
+      animation: boot-progress 1.25s ease-in-out infinite alternate;
+    }
+    .boot-steps {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .boot-step {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      color: #334155;
+      font-size: 14px;
+    }
+    .boot-step b {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      color: #4338ca;
+      background: #e0e7ff;
+      font-size: 12px;
+    }
+    .boot-foot {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #4f46e5;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .boot-pulse {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 0 0 rgba(34,197,94,.42);
+      animation: boot-pulse 1.2s infinite;
+    }
+    @keyframes boot-progress {
+      from { transform: translateX(-28%); }
+      to { transform: translateX(168%); }
+    }
+    @keyframes boot-pulse {
+      70% { box-shadow: 0 0 0 12px rgba(34,197,94,0); }
+      100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="app-loading" aria-live="polite">
+      <section class="boot-card">
+        <div class="boot-mark">?</div>
+        <p class="boot-kicker">组队超脑 Classroom Runtime</p>
+        <h1>正在进入学生协作空间</h1>
+        <p class="boot-subtitle">正在为你准备本次课堂项目工作台，请稍候。</p>
+        <div class="boot-progress"><span></span></div>
+        <div class="boot-steps">
+          <div class="boot-step"><b>01</b><span>连接学员工作台与身份会话</span></div>
+          <div class="boot-step"><b>02</b><span>加载我的班级、活动和候选团队数据</span></div>
+          <div class="boot-step"><b>03</b><span>同步画像标签、任务进度和社区消息</span></div>
+          <div class="boot-step"><b>04</b><span>装载学生协作界面与个人项目空间</span></div>
+        </div>
+        <div class="boot-foot"><span class="boot-pulse"></span><strong>初始化完成后将自动打开工作台</strong></div>
+      </section>
+    </div>
+  </div>
+  <!-- 必须用含编译器的 global 版本，prod 版无法渲染 template 字符串 -->
+  <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.4.38/vue.global.min.js"></script>
+  <script>
+    if (typeof Vue === 'undefined') {
+      document.write('<script src="https://unpkg.com/vue@3.4.38/dist/vue.global.js"><\/script>');
+    }
+  </script>
+  <script src="https://cdn.bootcdn.net/ajax/libs/element-plus/2.8.0/index.full.min.js"></script>
+  <script>
+    if (typeof ElementPlus === 'undefined') {
+      document.write('<script src="https://unpkg.com/element-plus@2.8.0/dist/index.full.min.js"><\/script>');
+    }
+  </script>
+  <script src="https://cdn.bootcdn.net/ajax/libs/axios/1.7.4/axios.min.js"></script>
+  <script>
+    if (typeof axios === 'undefined') {
+      document.write('<script src="https://unpkg.com/axios@1.7.4/dist/axios.min.js"><\/script>');
+    }
+  </script>
+  <script src="assets/config.js"></script>
+  <script src="assets/app.js?v=5.0"></script>
+</body>
+</html>

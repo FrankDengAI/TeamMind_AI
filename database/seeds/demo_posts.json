@@ -1,0 +1,218 @@
+[
+  {
+    "account": "lisi",
+    "title": "学习行为数据看板：想找前端和产品同学一起把指标讲清楚",
+    "content": "我整理了一份课堂互动数据的字段表，包括发帖、评论、任务进度、延迟提交和互评。希望把它做成教师可读的看板：不要只堆图表，要能解释每个组为什么需要关注。数据清洗和指标建模我可以负责，想找一位前端同学做可视化，也希望产品同学一起设计老师的查看路径。",
+    "tags": [
+      [
+        "数据分析",
+        "skill"
+      ],
+      [
+        "数据可视化",
+        "skill"
+      ],
+      [
+        "智慧教育",
+        "knowledge"
+      ],
+      [
+        "乐于分享",
+        "collab"
+      ]
+    ],
+    "media": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    "account": "wangwu",
+    "title": "候选团队确认页原型：角色不是标签，应该允许学生表达不适配",
+    "content": "今天画了一个预沟通确认页草图：每个候选成员能看到系统推荐角色、推荐依据、可承担任务和不想承担的原因。我的想法是把“接受当前角色”和“申请微调”放在同一屏，不让学生觉得 AI 一锤定音。欢迎技术同学一起讨论这个页面怎么落地。",
+    "tags": [
+      [
+        "人机交互",
+        "knowledge"
+      ],
+      [
+        "Figma",
+        "skill"
+      ],
+      [
+        "原型设计",
+        "skill"
+      ],
+      [
+        "擅长会议沟通",
+        "collab"
+      ]
+    ],
+    "media": "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    "account": "zhaoliu",
+    "title": "大模型画像解析的边界：建议保留规则评分作为兜底",
+    "content": "如果自由文本很短，LLM 很容易把学生角色推断得过满。我建议画像模块保留主动标签和规则评分作为兜底，再把 LLM 的分析作为解释增强，而不是唯一依据。这样即使 API 暂时不可用，系统也能完成分组。",
+    "tags": [
+      [
+        "自然语言处理",
+        "knowledge"
+      ],
+      [
+        "Prompt设计",
+        "skill"
+      ],
+      [
+        "严谨细致",
+        "collab"
+      ]
+    ],
+    "media": "https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    "account": "qianqi",
+    "title": "项目路演分工建议：最后汇报不要只由一个人临时救场",
+    "content": "我复盘了上学期的课程项目，很多组最后一周才开始做汇报，导致技术完成了但价值表达很弱。建议从任务分配阶段就设定“演示叙事”和“答辩材料”负责人，每周同步一次亮点和风险，这样最后不会返工。",
+    "tags": [
+      [
+        "产品规划",
+        "knowledge"
+      ],
+      [
+        "PPT汇报",
+        "skill"
+      ],
+      [
+        "协调对接",
+        "collab"
+      ]
+    ],
+    "media": "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    "account": "sunba",
+    "title": "课堂观察维度：积极性不能只看发言次数",
+    "content": "真实协作里，有些同学不常发言但会稳定推进任务，所以看板里最好同时展示任务进度、更新时间、同伴协助和反馈记录。积极性评价应该是过程证据，不是单一活跃次数。",
+    "tags": [
+      [
+        "教育技术",
+        "knowledge"
+      ],
+      [
+        "调研报告",
+        "skill"
+      ],
+      [
+        "愿意辅导同伴",
+        "collab"
+      ]
+    ],
+    "media": "https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    "account": "zhoujiu",
+    "title": "前端可视化想法：团队页可以像项目作战室而不是普通表格",
+    "content": "我想把团队页做成一个项目作战室：顶部显示完成率和风险，下面按成员卡片展示角色、任务、活跃度，再把逾期任务做成醒目的预警。这样学生也能一眼知道该找谁沟通。",
+    "tags": [
+      [
+        "前端开发",
+        "skill"
+      ],
+      [
+        "数据可视化",
+        "skill"
+      ],
+      [
+        "灵活创新",
+        "collab"
+      ]
+    ],
+    "media": "https://images.unsplash.com/photo-1559028012-481c04fa702d?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    "account": "wushi",
+    "title": "建议每个任务都设置验收标准和风险备注",
+    "content": "任务分配时只写“完成原型”太粗了。我建议每个任务至少包含交付物、验收标准、截止时间和依赖关系。这样一周后调优时，老师能判断是任务太难、依赖没完成，还是负责人需要支持。",
+    "tags": [
+      [
+        "项目管理",
+        "knowledge"
+      ],
+      [
+        "测试与调试",
+        "skill"
+      ],
+      [
+        "计划性强",
+        "collab"
+      ]
+    ],
+    "media": "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    "account": "liuyang",
+    "title": "医疗 AI 场景小组想法：先做问题界定，再谈模型",
+    "content": "如果做智慧医疗方向，我建议先确定真实用户和边界，例如面向患者科普、医生辅助还是随访管理。模型只是手段，产品设计、数据合规和解释性都要有人负责。",
+    "tags": [
+      [
+        "智慧医疗",
+        "knowledge"
+      ],
+      [
+        "机器学习",
+        "knowledge"
+      ],
+      [
+        "调研报告",
+        "skill"
+      ],
+      [
+        "严谨细致",
+        "collab"
+      ]
+    ],
+    "media": "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    "account": "xunuo",
+    "title": "预沟通期可以设计成 24 小时内完成的小型协商",
+    "content": "我的建议是：AI 生成候选组后，给每个组 24 小时预沟通。每个人只需要回答三个问题：是否接受队伍、是否接受角色、是否有任务偏好。这样不会增加太多课堂负担，但能显著减少后期冲突。",
+    "tags": [
+      [
+        "学习科学",
+        "knowledge"
+      ],
+      [
+        "项目管理",
+        "knowledge"
+      ],
+      [
+        "主动沟通",
+        "collab"
+      ]
+    ],
+    "media": "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    "account": "gaoyuan",
+    "title": "部署和演示提醒：公网发布前一定要处理密钥和测试账号",
+    "content": "我可以负责部署检查。建议公网演示前确认：API Key 不写在代码里，默认测试账号权限可控，上传文件大小有限制，教师端和学生端路由清晰。这样课堂试运行更稳。",
+    "tags": [
+      [
+        "Linux",
+        "skill"
+      ],
+      [
+        "Docker",
+        "skill"
+      ],
+      [
+        "测试与调试",
+        "skill"
+      ],
+      [
+        "严谨细致",
+        "collab"
+      ]
+    ],
+    "media": "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80"
+  }
+]

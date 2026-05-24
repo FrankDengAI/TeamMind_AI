@@ -1,0 +1,3 @@
+-- 种子数据由 init_db.py 生成（含 bcrypt 密码哈希）
+-- 测试账号: admin/admin123, zhangsan/123456 等
+-- 运行: python database/init_db.py
