@@ -12,27 +12,29 @@
   <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/element-plus/2.8.0/index.min.css" />
   <link rel="stylesheet" href="assets/style.css?v=4.6" />
   <style>
+    html.boot-loading,
+    html.boot-loading body {
+      margin: 0;
+      background: #f1f5f9 !important;
+    }
     #app-loading {
-      position: fixed; inset: 0; z-index: 99999;
-      min-height: 100vh;
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
       display: grid;
       place-items: center;
       padding: 32px;
-      background:
-        radial-gradient(circle at 20% 16%, rgba(14,165,233,.22), transparent 30%),
-        radial-gradient(circle at 82% 12%, rgba(124,58,237,.18), transparent 28%),
-        linear-gradient(135deg, #f8fafc 0%, #eef6ff 48%, #f5f3ff 100%);
+      background: transparent;
       color: #0f172a;
       font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
     }
     .boot-card {
       width: min(520px, 100%);
       padding: 34px;
-      border: 1px solid rgba(14,165,233,.18);
+      border: 1px solid #e2e8f0;
       border-radius: 28px;
-      background: rgba(255,255,255,.86);
-      box-shadow: 0 24px 80px rgba(15,23,42,.14);
-      backdrop-filter: blur(18px);
+      background: #ffffff;
+      box-shadow: 0 24px 64px rgba(15, 23, 42, 0.08);
     }
     .boot-mark {
       width: 58px;
@@ -132,13 +134,16 @@
       70% { box-shadow: 0 0 0 12px rgba(34,197,94,0); }
       100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
     }
+    #app-loading.boot-hidden {
+      display: none !important;
+    }
   </style>
 </head>
 <body>
+  <script>document.documentElement.classList.add('boot-loading')</script>
   <div id="admin-overview" style="display:none" aria-hidden="true"></div>
-  <div id="app">
-    <div id="app-loading" aria-live="polite">
-      <section class="boot-card">
+  <div id="app-loading" aria-live="polite">
+    <section class="boot-card" data-boot-variant="teacher">
         <div class="boot-mark" aria-hidden="true">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
             <rect x="4" y="4" width="7" height="7" rx="1.6" fill="#fff" fill-opacity="0.96"/>
@@ -147,20 +152,21 @@
             <rect x="13" y="13" width="7" height="7" rx="1.6" fill="#fff" fill-opacity="0.96"/>
           </svg>
         </div>
-        <p class="boot-kicker">组队超脑 Classroom Runtime</p>
-        <h1>正在进入教师课堂指挥舱</h1>
-        <p class="boot-subtitle">正在为你准备本次课堂项目工作台，请稍候。</p>
+        <p class="boot-kicker" data-i18n-boot="kicker">组队超脑 Classroom Runtime</p>
+        <h1 data-i18n-boot="title">正在进入教师课堂指挥舱</h1>
+        <p class="boot-subtitle" data-i18n-boot="subtitle">正在为你准备本次课堂项目工作台，请稍候。</p>
         <div class="boot-progress"><span></span></div>
         <div class="boot-steps">
-          <div class="boot-step"><b>01</b><span>连接本地课堂服务与权限会话</span></div>
-          <div class="boot-step"><b>02</b><span>读取班级、学生画像与组队活动数据库</span></div>
-          <div class="boot-step"><b>03</b><span>同步任务看板、风险预警和 AI 分组分析</span></div>
-          <div class="boot-step"><b>04</b><span>装载教师管理界面与实时课堂视图</span></div>
+          <div class="boot-step"><b>01</b><span data-i18n-boot="step1">连接本地课堂服务与权限会话</span></div>
+          <div class="boot-step"><b>02</b><span data-i18n-boot="step2">读取班级、学生画像与组队活动数据库</span></div>
+          <div class="boot-step"><b>03</b><span data-i18n-boot="step3">同步任务看板、风险预警和 AI 分组分析</span></div>
+          <div class="boot-step"><b>04</b><span data-i18n-boot="step4">装载教师管理界面与实时课堂视图</span></div>
         </div>
-        <div class="boot-foot"><span class="boot-pulse"></span><strong>初始化完成后将自动打开工作台</strong></div>
-      </section>
-    </div>
+        <div class="boot-foot"><span class="boot-pulse"></span><strong data-i18n-boot="foot">初始化完成后将自动打开工作台</strong></div>
+    </section>
   </div>
+  <script src="assets/boot-inline.js?v=1.1"></script>
+  <div id="app"></div>
   <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.4.38/vue.global.min.js"></script>
   <script>
     if (typeof Vue === 'undefined') {
@@ -185,8 +191,9 @@
       document.write('<script src="https://unpkg.com/opencc-js@1.0.5/dist/umd/full.js"><\/script>');
     }
   </script>
-  <script src="assets/i18n-core.js"></script>
+  <script src="assets/i18n-core.js?v=5.11"></script>
+  <script src="assets/boot-i18n.js?v=5.11"></script>
   <script src="assets/config.js"></script>
-  <script src="assets/app.js?v=5.4"></script>
+  <script src="assets/app.js?v=5.14"></script>
 </body>
 </html>

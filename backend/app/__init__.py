@@ -142,6 +142,7 @@ def create_app(config_class=Config, serve_static=False, static_ui=None):
     with app.app_context():
         db.create_all()
         _ensure_runtime_schema()
+        _seed_billing_plans()
         if not app.config.get("TESTING"):
             _seed_demo_classes()
             _seed_demo_content()
@@ -225,6 +226,8 @@ def _ensure_runtime_schema():
         activity_cols = {c["name"] for c in inspector.get_columns("team_activity")}
         if "class_id" not in activity_cols:
             db.session.execute(text("ALTER TABLE team_activity ADD COLUMN class_id INTEGER"))
+        if "ai_insight_json" not in activity_cols:
+            db.session.execute(text("ALTER TABLE team_activity ADD COLUMN ai_insight_json TEXT"))
     if "behavior_log" in table_names:
         behavior_cols = {c["name"] for c in inspector.get_columns("behavior_log")}
         behavior_additions = {
@@ -234,6 +237,43 @@ def _ensure_runtime_schema():
         for name, col_type in behavior_additions.items():
             if name not in behavior_cols:
                 db.session.execute(text(f"ALTER TABLE behavior_log ADD COLUMN {name} {col_type}"))
+    db.session.commit()
+
+
+def _seed_billing_plans():
+    """同步套餐表并确保演示管理员有免费订阅记录."""
+    import json
+
+    from app.models import SubscriptionPlan, User, UserSubscription
+    from app.services.plan_catalog import PLAN_CATALOG
+
+    for code, plan in PLAN_CATALOG.items():
+        row = SubscriptionPlan.query.filter_by(code=code).first()
+        meta = {
+            "name_en": plan.get("name_en"),
+            "badge": plan.get("badge"),
+            "highlight": plan.get("highlight"),
+            "features": plan.get("features_marketing", []),
+        }
+        if not row:
+            row = SubscriptionPlan(
+                code=code,
+                name=plan["name"],
+                limits_json=json.dumps(plan["limits"], ensure_ascii=False),
+                price_month_cents=plan["price_month_cents"],
+                price_year_cents=plan["price_year_cents"],
+                meta_json=json.dumps(meta, ensure_ascii=False),
+            )
+            db.session.add(row)
+        else:
+            row.name = plan["name"]
+            row.limits_json = json.dumps(plan["limits"], ensure_ascii=False)
+            row.price_month_cents = plan["price_month_cents"]
+            row.price_year_cents = plan["price_year_cents"]
+            row.meta_json = json.dumps(meta, ensure_ascii=False)
+    admin = User.query.filter_by(account="admin").first()
+    if admin and not UserSubscription.query.filter_by(user_id=admin.id).first():
+        db.session.add(UserSubscription(user_id=admin.id, plan_code="free", status="active"))
     db.session.commit()
 
 

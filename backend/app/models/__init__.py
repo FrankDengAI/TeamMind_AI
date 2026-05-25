@@ -9,6 +9,7 @@ from app.models.audit_log import AuditLog
 from app.models.community import ChatConversation, ChatMessage, CommunityPost, PostComment, PostInteraction
 from app.models.team_activity import TeamActivity, TeamActivityParticipant, TeamConfirmation, TeamJoinRequest, TeamRoom
 from app.models.classroom import Classroom, ClassMembership, ClassRequest
+from app.models.billing import AiUsageLog, FeatureOverride, PaymentOrder, SubscriptionPlan, UserSubscription
 
 __all__ = [
     "User",
@@ -31,4 +32,9 @@ __all__ = [
     "Classroom",
     "ClassMembership",
     "ClassRequest",
+    "SubscriptionPlan",
+    "UserSubscription",
+    "PaymentOrder",
+    "AiUsageLog",
+    "FeatureOverride",
 ]

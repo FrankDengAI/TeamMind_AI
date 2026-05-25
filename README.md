@@ -657,6 +657,7 @@ python scripts/verify_zeabur_deploy.py --base-url https://your-app.zeabur.app
 
 - 中文：更细粒度的课程活动管理、更多任务模板、教师评分 Rubric、团队互评、可插拔 LLM Provider、Docker/Compose 部署模板。
 - English: finer-grained course activity management, more task templates, teacher grading rubrics, peer review, pluggable LLM providers and Docker/Compose deployment templates.
+- **V2 计费（已落地）**：Freemium 套餐、AI 点数、扫码支付与订单核销 — 见 [docs/BILLING.md](docs/BILLING.md)。
 
 ---
 

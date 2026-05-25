@@ -375,6 +375,20 @@ def launch_all(
         log(f"  学生端: {backend_url}/student/", "User")
         log(f"  API 健康检查: {backend_url}/api/health", "Admin")
 
+        try:
+            sys.path.insert(0, str(BACKEND_DIR))
+            from app.services.access_urls import build_access_urls
+
+            access = build_access_urls(
+                request_host=f"127.0.0.1:{backend_port}",
+                port=backend_port,
+            )
+            if access.get("scan_ready"):
+                log(f"  局域网主页（可制二维码）: {access['urls']['portal']}", "Portal")
+                log("  （手机需与电脑同一 WiFi；请使用 --host 0.0.0.0 启动）", "Portal")
+        except Exception:
+            pass
+
     if should_start_legacy_user:
         if user_only and not wait_backend_ready(backend_url, timeout=backend_wait):
             log("后台未启动或不可用！", "User")

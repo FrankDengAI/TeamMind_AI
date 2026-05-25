@@ -79,14 +79,146 @@ def activity_grouping_insight(activity: dict, groups: list[dict], *, use_llm: bo
     return _normalize_insight(ai, fallback)
 
 
-def group_ai_insight(group: dict, members: list[dict] | None = None) -> dict[str, Any]:
+def group_ai_insight(
+    group: dict,
+    members: list[dict] | None = None,
+    *,
+    use_llm: bool = False,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     members = members or []
+    fallback = _fallback_group_insight(group, members)
+    if not use_llm:
+        return fallback
+    ctx = context or {}
+    ai = _call_deepseek_json(
+        "你是高校项目制学习的小组协作顾问。请只输出 JSON："
+        "{summary:string,rationale:[string],risks:[string],recommendations:[string],teacher_actions:[string]}。"
+        "针对该候选小组的成员画像、角色与均衡度给出可执行建议，勿编造未提供的学生信息。",
+        {
+            "group": group,
+            "members": [
+                {
+                    "user_id": m.get("user_id"),
+                    "pref_role": m.get("pref_role"),
+                    "major": m.get("major"),
+                    "knowledge_score": m.get("knowledge_final") or m.get("knowledge_score"),
+                    "skill_score": m.get("skill_final") or m.get("skill_score"),
+                    "collab_score": m.get("collab_final") or m.get("collab_score"),
+                    "active_tags": (m.get("active_tags") or [])[:12],
+                }
+                for m in members
+            ],
+            "context": ctx,
+        },
+    )
+    if not ai or ai.get("error"):
+        fallback["source"] = "rule_fallback"
+        if ai and ai.get("error"):
+            fallback["error"] = ai["error"]
+        return fallback
+    return _normalize_insight(ai, fallback)
+
+
+def task_assign_insight(
+    assignments: list[dict],
+    members: list[dict],
+    *,
+    team_goal: str = "",
+    template_key: str = "product_dev",
+    use_llm: bool = False,
+) -> dict[str, Any]:
+    fallback = {
+        "source": "rule_fallback",
+        "summary": "已根据成员技能与角色偏好完成初始任务分配。",
+        "rationale": ["分配算法优先匹配任务所需角色与成员技能标签。", "工时与难度按模板默认值估算。"],
+        "teacher_actions": ["锁定团队后请与学生确认分工是否合理。"],
+    }
+    if not use_llm:
+        return fallback
+    ai = _call_deepseek_json(
+        "你是项目制课程的任务分工顾问。请只输出 JSON："
+        "{summary:string,rationale:[string],task_notes:[{task_name:string,assignee_id:int,reason:string}],teacher_actions:[string]}。"
+        "task_notes 需覆盖每条 assignment，reason 为 1-2 句可给学生看的分配依据。",
+        {
+            "assignments": assignments,
+            "members": members,
+            "team_goal": team_goal,
+            "template_key": template_key,
+        },
+    )
+    if not ai or ai.get("error"):
+        fallback["source"] = "rule_fallback"
+        return fallback
+    return {**fallback, **ai, "source": ai.get("source", "deepseek")}
+
+
+def task_adjust_insight(
+    adjust_result: dict,
+    tasks: list[dict],
+    members: list[dict],
+    behavior_summary: dict,
+    *,
+    use_llm: bool = False,
+) -> dict[str, Any]:
+    fallback = {
+        "source": "rule_fallback",
+        "summary": f"共生成 {len(adjust_result.get('suggestions') or [])} 条调优建议。",
+        "rationale": ["依据成员进度、提交状态与同伴反馈生成。"],
+        "teacher_actions": ["在任务看板中逐条确认或驳回系统建议。"],
+    }
+    if not use_llm:
+        return fallback
+    ai = _call_deepseek_json(
+        "你是团队协作的任务调优顾问。请只输出 JSON："
+        "{summary:string,rationale:[string],risks:[string],teacher_actions:[string]}。"
+        "结合行为摘要与系统建议，给老师一段整体判断与优先处理顺序。",
+        {
+            "adjust_result": adjust_result,
+            "tasks": tasks,
+            "members": members,
+            "behavior_summary": behavior_summary,
+        },
+    )
+    if not ai or ai.get("error"):
+        return fallback
+    return _normalize_insight(ai, fallback)
+
+
+def team_report_insight(
+    report: dict,
+    group: dict,
+    tasks: list[dict],
+    *,
+    use_llm: bool = False,
+) -> dict[str, Any]:
+    fallback = {
+        "source": "rule_fallback",
+        "summary": f"团队完成率 {report.get('completion_rate', 0)}%，质量分 {report.get('quality_score', 0)}，风险等级 {report.get('risk_level', 'unknown')}。",
+        "rationale": ["指标由任务进度、均衡分与迟交行为综合计算。"],
+        "teacher_actions": ["关注高风险小组并安排复盘会议。"],
+    }
+    if not use_llm:
+        return fallback
+    ai = _call_deepseek_json(
+        "你是教学评估顾问。请只输出 JSON："
+        "{summary:string,rationale:[string],risks:[string],recommendations:[string],teacher_actions:[string]}。"
+        "为教师撰写 3-5 句团队质量报告叙事，客观、可执行。",
+        {"report": report, "group": group, "tasks": tasks},
+    )
+    if not ai or ai.get("error"):
+        return fallback
+    return _normalize_insight(ai, fallback)
+
+
+def _fallback_group_insight(group: dict, members: list[dict]) -> dict[str, Any]:
     roles = [m.get("pref_role") for m in members if m.get("pref_role")]
     skills = []
     for m in members:
         skills.extend([t.get("name") for t in (m.get("active_tags") or []) if isinstance(t, dict) and t.get("dimension") == "skill"])
     return {
         "source": "rule_fallback",
+        "model": None,
         "summary": f"{group.get('group_name', '该小组')}共 {len(group.get('member_ids') or [])} 人，技能均分 {group.get('avg_skill', 0)}，适合进入预沟通确认。",
         "rationale": [
             f"角色覆盖：{'、'.join(list(dict.fromkeys(roles))[:4]) or '待根据画像继续细化'}。",

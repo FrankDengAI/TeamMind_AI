@@ -5,7 +5,7 @@
   python main.py              # 启动统一门户 + 教师端 + 学生端 + API (5000)
   python main.py --init       # 重建数据库后启动
   python main.py --no-browser # 不自动打开浏览器
-  python main.py --host 0.0.0.0 # 允许公网/局域网反向代理访问
+  python main.py --host 0.0.0.0 # 允许局域网访问；手机同 WiFi 扫 /scan/ 二维码进入
 
 端口与前端（不由本文件定义 UI，仅托管静态目录）：
   5000  统一门户 + 教师端 + 学生端 + API + WebSocket

@@ -7,8 +7,11 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from app import db
 from app.middleware.auth import get_request_user_id, admin_required, write_audit
 from app.models import BehaviorLog, GroupInfo, Task, User, UserProfile
+from app.middleware.entitlement import paywall_response
 from app.services.algorithms.task_adjust import TaskAdjustAlgorithm
 from app.services.algorithms.task_assign import TaskAssignAlgorithm
+from app.services.entitlement_service import PaywallError
+from app.services.task_ai_helpers import enrich_adjust_with_ai, enrich_assignments_with_ai
 from app.services.task_service import create_assigned_tasks, parse_deadline
 
 bp = Blueprint("task", __name__)
@@ -52,10 +55,26 @@ def assign_tasks():
         return jsonify({"error": "组内无有效画像"}), 400
 
     assignments = assigner.assign(group_id, members, template_key, custom_tasks, team_goal)
+    uid = get_request_user_id()
+    ai_insight = None
+    try:
+        assignments, ai_insight = enrich_assignments_with_ai(
+            uid,
+            assignments,
+            members,
+            team_goal=team_goal,
+            template_key=template_key,
+            use_ai=bool(data.get("use_ai")),
+        )
+    except PaywallError as exc:
+        return paywall_response(exc)
     created = create_assigned_tasks(group_id, assignments)
     db.session.commit()
     write_audit("task_assign", "group", group_id)
-    return jsonify({"tasks": [t.to_dict() for t in created]})
+    payload = {"tasks": [t.to_dict() for t in created]}
+    if ai_insight:
+        payload["ai_insight"] = ai_insight
+    return jsonify(payload)
 
 
 @bp.route("/list", methods=["GET"])
@@ -241,8 +260,21 @@ def adjust_tasks():
     group = GroupInfo.query.get_or_404(group_id)
     tasks = Task.query.filter_by(group_id=group_id).all()
     logs = BehaviorLog.query.filter_by(group_id=group_id).all()
+    members = _members_profiles(group)
     summary = adjuster.summarize_behavior(logs)
-    result = adjuster.adjust([t.to_dict() for t in tasks], summary, _members_profiles(group))
+    task_dicts = [t.to_dict() for t in tasks]
+    result = adjuster.adjust(task_dicts, summary, members)
+    try:
+        result = enrich_adjust_with_ai(
+            get_request_user_id(),
+            result,
+            task_dicts,
+            members,
+            summary,
+            use_ai=bool(data.get("use_ai")),
+        )
+    except PaywallError as exc:
+        return paywall_response(exc)
 
     for t in tasks:
         for sug in result["suggestions"]:

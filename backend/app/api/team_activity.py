@@ -27,6 +27,59 @@ from app.services.class_grouping import suggest_group_sizes
 from app.services.group_config import load_group_config, set_member_roles
 from app.services.role_assign import assign_roles_for_group
 from app.services.tag_catalog import normalize_active_tags
+from app.middleware.entitlement import paywall_response
+from app.services.entitlement_service import (
+    PaywallError,
+    check_limit,
+    consume_ai_points,
+    get_entitlements,
+    mask_ai_analysis,
+)
+
+ACTIVE_ACTIVITY_STATUSES = {
+    "collecting",
+    "grouping",
+    "preview",
+    "confirming",
+    "published",
+    "locked",
+    "tasking",
+    "adjusting",
+}
+
+
+def _teacher_id_for_activity(activity: TeamActivity) -> int | None:
+    if activity.created_by:
+        return activity.created_by
+    if activity.class_id:
+        cls = Classroom.query.get(activity.class_id)
+        return cls.teacher_id if cls else None
+    return None
+
+
+def _load_activity_ai_insight(activity: TeamActivity) -> dict | None:
+    if not activity.ai_insight_json:
+        return None
+    try:
+        return json.loads(activity.ai_insight_json)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def _save_activity_ai_insight(activity: TeamActivity, insight: dict | None, *, preview: bool = False) -> None:
+    if not insight:
+        activity.ai_insight_json = None
+        return
+    payload = {**insight, "preview": preview}
+    activity.ai_insight_json = json.dumps(payload, ensure_ascii=False)
+
+
+def _activity_llm_enabled(activity: TeamActivity) -> bool:
+    tid = _teacher_id_for_activity(activity)
+    if not tid:
+        return False
+    ent = get_entitlements(tid)
+    return bool(ent["flags"].get("activity_llm_insight"))
 
 bp = Blueprint("team_activity", __name__)
 admin_bp = Blueprint("admin_team_activity", __name__)
@@ -145,10 +198,16 @@ def _group_to_dict(group: GroupInfo, *, include_confirmations: bool = False):
     return data
 
 
-def _build_group_ai_analysis(group_payload: dict, member_profiles: list[dict]) -> dict:
+def _build_group_ai_analysis(
+    group_payload: dict,
+    member_profiles: list[dict],
+    *,
+    use_llm: bool = False,
+    context: dict | None = None,
+) -> dict:
     member_set = set(group_payload.get("member_ids") or [])
     members = [p for p in member_profiles if p.get("user_id") in member_set]
-    return group_ai_insight(group_payload, members)
+    return group_ai_insight(group_payload, members, use_llm=use_llm, context=context)
 
 
 def _profile_for_group(uid: int, participant: TeamActivityParticipant | None = None) -> dict | None:
@@ -182,6 +241,16 @@ def admin_team_activities():
     classroom = Classroom.query.get(class_id)
     if not classroom:
         return jsonify({"error": "班级不存在"}), 404
+    try:
+        active_count = (
+            TeamActivity.query.filter(
+                TeamActivity.class_id == classroom.id,
+                TeamActivity.status.in_(ACTIVE_ACTIVITY_STATUSES),
+            ).count()
+        )
+        check_limit(uid, "max_active_activities", current=active_count, increment=1)
+    except PaywallError as exc:
+        return paywall_response(exc)
     activity = TeamActivity(
         title=title,
         description=(data.get("description") or "").strip(),
@@ -268,6 +337,24 @@ def auto_group(activity_id):
 
     TeamConfirmation.query.filter_by(activity_id=activity.id).delete()
     GroupInfo.query.filter_by(activity_id=activity.id).delete()
+    use_llm = _activity_llm_enabled(activity)
+    tid = _teacher_id_for_activity(activity)
+    preview_mode = False
+    if use_llm and tid:
+        try:
+            consume_ai_points(tid, "activity.insight")
+        except PaywallError as exc:
+            return paywall_response(exc)
+    else:
+        use_llm = False
+    if tid:
+        ent = get_entitlements(tid)
+        preview_mode = ent["plan_code"] == "free"
+    llm_ctx = {
+        "task_goal": activity.task_goal,
+        "required_tags": activity.required_tags(),
+        "required_roles": activity.required_roles(),
+    }
     task_requirements = {
         "goal": activity.task_goal,
         "required_tags": activity.required_tags(),
@@ -303,7 +390,9 @@ def auto_group(activity_id):
                     **result["config"],
                     "audit_log": result["audit_log"],
                     "complement_note": g.get("complement_note", ""),
-                    "ai_analysis": _build_group_ai_analysis(group_payload, profiles),
+                    "ai_analysis": _build_group_ai_analysis(
+                        group_payload, profiles, use_llm=use_llm, context=llm_ctx
+                    ),
                 },
                 ensure_ascii=False,
             ),
@@ -327,11 +416,94 @@ def auto_group(activity_id):
             )
         saved.append(group)
     activity.status = "confirming"
-    db.session.commit()
     group_payloads = [_group_to_dict(g, include_confirmations=True) for g in saved]
-    ai_analysis = activity_grouping_insight(activity.to_dict(counts=_activity_counts(activity)), group_payloads, use_llm=False)
-    write_audit("team_activity_auto_group", "team_activity", activity.id, json.dumps({"groups": len(saved)}))
+    ai_analysis = activity_grouping_insight(
+        activity.to_dict(counts=_activity_counts(activity)), group_payloads, use_llm=use_llm
+    )
+    ent = get_entitlements(tid) if tid else {"flags": {}}
+    entitled = bool(ent["flags"].get("activity_llm_insight")) and use_llm
+    if ai_analysis:
+        ai_analysis = mask_ai_analysis(ai_analysis, entitled=entitled and not preview_mode)
+    _save_activity_ai_insight(activity, ai_analysis, preview=preview_mode and use_llm)
+    db.session.commit()
+    write_audit("team_activity_auto_group", "team_activity", activity.id, json.dumps({"groups": len(saved), "use_llm": use_llm}))
     return jsonify({"activity": activity.to_dict(counts=_activity_counts(activity)), "groups": group_payloads, "ai_analysis": ai_analysis})
+
+
+@admin_bp.route("/team-activities/<int:activity_id>/refresh-insight", methods=["POST"])
+@admin_required
+def refresh_activity_insight(activity_id):
+    """重新生成活动级 AI 复盘（扣 activity.insight 点数）."""
+    activity = TeamActivity.query.get_or_404(activity_id)
+    groups = GroupInfo.query.filter_by(activity_id=activity.id).all()
+    if not groups:
+        return jsonify({"error": "暂无可分析的小组"}), 400
+    use_llm = _activity_llm_enabled(activity)
+    tid = _teacher_id_for_activity(activity)
+    preview_mode = False
+    if use_llm and tid:
+        try:
+            consume_ai_points(tid, "activity.insight")
+        except PaywallError as exc:
+            return paywall_response(exc)
+    else:
+        use_llm = False
+    group_payloads = [_group_to_dict(g, include_confirmations=True) for g in groups]
+    data = activity.to_dict(counts=_activity_counts(activity))
+    analysis = activity_grouping_insight(data, group_payloads, use_llm=use_llm)
+    ent = get_entitlements(tid) if tid else {"flags": {}}
+    entitled = bool(ent["flags"].get("activity_llm_insight")) and use_llm
+    preview_mode = ent["plan_code"] == "free" if tid else False
+    if analysis:
+        analysis = mask_ai_analysis(analysis, entitled=entitled and not preview_mode)
+    _save_activity_ai_insight(activity, analysis, preview=preview_mode and use_llm)
+    db.session.commit()
+    write_audit("team_activity_refresh_insight", "team_activity", activity.id)
+    return jsonify({"ai_analysis": analysis, "use_llm": use_llm})
+
+
+@admin_bp.route("/team-activities/<int:activity_id>/groups/<int:group_id>/refresh-ai", methods=["POST"])
+@admin_required
+def refresh_group_ai(activity_id, group_id):
+    """重新生成单组 AI 分析（扣 group.insight 点数）."""
+    activity = TeamActivity.query.get_or_404(activity_id)
+    group = GroupInfo.query.get_or_404(group_id)
+    if group.activity_id != activity.id:
+        return jsonify({"error": "小组不属于该活动"}), 400
+    tid = _teacher_id_for_activity(activity)
+    use_llm = _activity_llm_enabled(activity)
+    if use_llm and tid:
+        try:
+            consume_ai_points(tid, "group.insight")
+        except PaywallError as exc:
+            return paywall_response(exc)
+    else:
+        use_llm = False
+    profiles = []
+    for mid in group.member_list():
+        prof = _profile_for_group(mid)
+        if prof:
+            profiles.append(prof)
+    payload = {
+        "group_name": group.group_name,
+        "member_ids": group.member_list(),
+        "avg_knowledge": group.avg_knowledge,
+        "avg_skill": group.avg_skill,
+        "avg_collab": group.avg_collab,
+        "balance_score": group.balance_score,
+    }
+    insight = _build_group_ai_analysis(
+        payload,
+        profiles,
+        use_llm=use_llm,
+        context={"task_goal": activity.task_goal, "activity_title": activity.title},
+    )
+    cfg = load_group_config(group)
+    cfg["ai_analysis"] = insight
+    group.config = json.dumps(cfg, ensure_ascii=False)
+    db.session.commit()
+    write_audit("team_group_refresh_ai", "group", group.id)
+    return jsonify({"group_id": group.id, "ai_analysis": insight, "use_llm": use_llm})
 
 
 @admin_bp.route("/team-activities/<int:activity_id>/publish-groups", methods=["POST"])
@@ -676,8 +848,16 @@ def _activity_detail(activity: TeamActivity):
     data["participants"] = [{**p.to_dict(), "user": users.get(p.user_id)} for p in participants]
     data["rooms"] = [_room_to_dict(r) for r in rooms]
     data["groups"] = [_group_to_dict(g, include_confirmations=True) for g in groups]
-    if data["groups"]:
-        data["ai_analysis"] = activity_grouping_insight(data, data["groups"], use_llm=False)
+    cached = _load_activity_ai_insight(activity)
+    if cached:
+        tid = _teacher_id_for_activity(activity)
+        ent = get_entitlements(tid) if tid else {"flags": {}}
+        preview = bool(cached.pop("preview", False))
+        data["ai_analysis"] = mask_ai_analysis(
+            cached,
+            entitled=bool(ent["flags"].get("activity_llm_insight")) and not preview,
+        )
+        data["ai_preview"] = preview
     data["confirmations"] = [_confirmation_to_dict(c, users) for c in confirmations]
     total = max(len(confirmations), 1)
     accepted = sum(1 for c in confirmations if c.status in {"accepted", "resolved"} and c.accept_team)

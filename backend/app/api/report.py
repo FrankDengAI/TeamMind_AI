@@ -6,7 +6,10 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from app import db
 from app.middleware.auth import get_request_user_id, admin_required, write_audit
+from app.middleware.entitlement import paywall_response
 from app.models import BehaviorLog, GroupInfo, Task, TeamReport, User
+from app.services.ai_insights import team_report_insight
+from app.services.entitlement_service import PaywallError, consume_ai_points, get_entitlements
 
 bp = Blueprint("report", __name__)
 
@@ -49,15 +52,42 @@ def generate_report():
     elif completion < 60:
         risk = "medium"
 
+    detail = {"task_count": len(tasks), "behavior_count": len(logs)}
+    use_ai = bool(data.get("use_ai"))
+    uid = get_request_user_id()
+    if use_ai:
+        ent = get_entitlements(uid)
+        if not ent["flags"].get("activity_llm_insight"):
+            return jsonify({"error": "报告 AI 叙事需升级专业版", "code": "PAYWALL"}), 402
+        try:
+            consume_ai_points(uid, "report.llm")
+        except PaywallError as exc:
+            return paywall_response(exc)
+        report_stub = {
+            "completion_rate": round(completion, 1),
+            "balance_score": balance,
+            "quality_score": round(quality, 2),
+            "risk_level": risk,
+        }
+        detail["llm_narrative"] = team_report_insight(
+            report_stub,
+            group.to_dict(),
+            [t.to_dict() for t in tasks],
+            use_llm=True,
+        )
+
     report = TeamReport(
         group_id=group_id,
         completion_rate=round(completion, 1),
         balance_score=balance,
         quality_score=round(quality, 2),
         risk_level=risk,
-        detail=json.dumps({"task_count": len(tasks), "behavior_count": len(logs)}, ensure_ascii=False),
+        detail=json.dumps(detail, ensure_ascii=False),
     )
     db.session.add(report)
     db.session.commit()
     write_audit("report_generate", "group", group_id)
-    return jsonify(report.to_dict())
+    out = report.to_dict()
+    if detail.get("llm_narrative"):
+        out["llm_narrative"] = detail["llm_narrative"]
+    return jsonify(out)

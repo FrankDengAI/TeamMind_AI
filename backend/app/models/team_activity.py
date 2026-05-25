@@ -22,6 +22,7 @@ class TeamActivity(db.Model):
     required_roles_json = db.Column(db.Text)
     deadline = db.Column(db.DateTime)
     class_id = db.Column(db.Integer, db.ForeignKey("classroom.id"), index=True, nullable=False)
+    ai_insight_json = db.Column(db.Text)  # 活动级 AI 复盘缓存
     created_by = db.Column(db.Integer, db.ForeignKey("user.id"), index=True)
     create_time = db.Column(db.DateTime, default=datetime.utcnow)
     update_time = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

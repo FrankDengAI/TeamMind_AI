@@ -35,6 +35,7 @@ const resources = {
   'zh-CN': {
     translation: {
       navProduct: '产品能力',
+      navPricing: '定价',
       navWorkflow: '课堂流程',
       login: '登录',
       register: '注册',
@@ -116,6 +117,7 @@ const resources = {
   en: {
     translation: {
       navProduct: 'Product',
+      navPricing: 'Pricing',
       navWorkflow: 'Workflow',
       login: 'Log in',
       register: 'Sign up',
@@ -225,6 +227,25 @@ const portalExtras = {
     teacherPreviewText: '创建活动、处理微调、锁定团队、分配任务、监督风险。',
     studentPreviewTitle: '学生协作空间',
     studentPreviewText: '填写画像、确认角色、查看队友、更新任务、提交反馈。',
+    pricingTitle: '简单透明的课堂定价',
+    pricingText: '大部分功能永久免费；教师按班级规模与 AI 算力升级，学生不付费。',
+    planFree: '免费版',
+    planPro: '专业版',
+    planPlus: '旗舰版',
+    planPopular: '80% 教师选择',
+    planCTA: '进入教师端升级',
+    trialCTA: '新教师送 7 天 Pro 试用',
+    trialClaim: '登录教师端后一键领取',
+    planPerMonth: '/月',
+    planFreeF1: '1 班级 · 30 人',
+    planFreeF2: '完整组队闭环',
+    planFreeF3: '20 AI 点/月',
+    planProF1: 'DeepSeek 画像与分组',
+    planProF2: '500 AI 点',
+    planProF3: '无水印导出',
+    planPlusF1: '多班大班',
+    planPlusF2: '2000 AI 点',
+    planPlusF3: 'PDF 不限',
   },
   en: {
     languageShort: 'Language',
@@ -254,6 +275,25 @@ const portalExtras = {
     teacherPreviewText: 'Create activities, resolve adjustments, lock teams, assign tasks, and monitor risks.',
     studentPreviewTitle: 'Student collaboration space',
     studentPreviewText: 'Complete profiles, confirm roles, review teammates, update tasks, and submit feedback.',
+    pricingTitle: 'Simple classroom pricing',
+    pricingText: 'Core features stay free for students. Teachers upgrade for AI credits and exports.',
+    planFree: 'Free',
+    planPro: 'Pro',
+    planPlus: 'Plus',
+    planPopular: 'Most popular',
+    planCTA: 'Open teacher console',
+    trialCTA: '7-day Pro trial for new teachers',
+    trialClaim: 'Claim in the teacher console after sign-in',
+    planPerMonth: '/mo',
+    planFreeF1: '1 class · up to 30 students',
+    planFreeF2: 'Full team formation workflow',
+    planFreeF3: '20 AI credits/month',
+    planProF1: 'DeepSeek profiles & grouping',
+    planProF2: '500 AI credits',
+    planProF3: 'Export without watermark',
+    planPlusF1: 'Multi-class & large cohorts',
+    planPlusF2: '2000 AI credits',
+    planPlusF3: 'Unlimited PDF reports',
   },
 };
 
@@ -372,8 +412,17 @@ function applyPageTitle() {
   document.title = t('pageTitle') || 'TeamMind AI';
 }
 
-function setLang(lang) {
+function syncAppLangPreference(lang) {
   portalStorage.setItem(LANG_KEY, lang);
+  try {
+    window.localStorage?.setItem('teammind_app_lang', lang);
+  } catch {
+    // Ignore blocked storage; portal language still applies for this session.
+  }
+}
+
+function setLang(lang) {
+  syncAppLangPreference(lang);
   i18next.changeLanguage(lang === 'zh-Hant' ? 'zh-CN' : lang).then(() => {
     applyPageTitle();
     render();
@@ -406,8 +455,23 @@ function launchSteps(role) {
   return ['A', 'B', 'C', 'D'].map((item) => t(`${prefix}${item}`));
 }
 
+function appendLangToUrl(url, lang) {
+  if (!lang || lang === 'zh-CN') return url
+  try {
+    const u = new URL(url, window.location.origin)
+    u.searchParams.set('lang', lang)
+    return `${u.pathname}${u.search}${u.hash}`
+  } catch {
+    const sep = url.includes('?') ? '&' : '?'
+    return `${url}${sep}lang=${encodeURIComponent(lang)}`
+  }
+}
+
 function openLaunchOverlay(role, url) {
-  window.clearTimeout(launchTimer);
+  const lang = currentLang()
+  syncAppLangPreference(lang)
+  const targetUrl = appendLangToUrl(url, lang)
+  window.clearTimeout(launchTimer)
   closeRoleModal();
   const existing = document.querySelector('.launch-overlay');
   existing?.remove();
@@ -452,7 +516,7 @@ function openLaunchOverlay(role, url) {
     overlay.classList.add('ready');
   }, 1660);
   launchTimer = window.setTimeout(() => {
-    window.location.href = url;
+    window.location.href = targetUrl;
   }, 2050);
 }
 
@@ -474,6 +538,7 @@ function render() {
       <div class="brand"><span class="brand-mark"></span><span>${t('brandLabel')}</span></div>
       <nav class="nav">
         <a href="#product">${t('navProduct')}</a>
+        <a href="#pricing">${t('navPricing')}</a>
         <a href="#workflow">${t('navWorkflow')}</a>
       </nav>
       <div class="actions">
@@ -550,6 +615,19 @@ function render() {
           ${feature('03', t('feature3Title'), t('feature3Text'))}
           ${feature('04', t('feature4Title'), t('feature4Text'))}
         </div>
+      </section>
+
+      <section class="section pricing-section" id="pricing">
+        <div class="section-head">
+          <h2>${t('pricingTitle')}</h2>
+          <p>${t('pricingText')}</p>
+        </div>
+        <div class="pricing-grid" id="pricing-grid">
+          <article class="pricing-card"><h3>${t('planFree')}</h3><p class="price">¥0</p><ul><li>${t('planFreeF1')}</li><li>${t('planFreeF2')}</li><li>${t('planFreeF3')}</li></ul></article>
+          <article class="pricing-card popular"><span class="pricing-badge">${t('planPopular')}</span><h3>${t('planPro')}</h3><p class="price">¥49<small>${t('planPerMonth')}</small></p><ul><li>${t('planProF1')}</li><li>${t('planProF2')}</li><li>${t('planProF3')}</li></ul><a class="button primary" href="/admin/#billing">${t('planCTA')}</a></article>
+          <article class="pricing-card"><h3>${t('planPlus')}</h3><p class="price">¥129<small>${t('planPerMonth')}</small></p><ul><li>${t('planPlusF1')}</li><li>${t('planPlusF2')}</li><li>${t('planPlusF3')}</li></ul><a class="button" href="/admin/#billing">${t('planCTA')}</a></article>
+        </div>
+        <p class="pricing-trial"><a href="/admin/">${t('trialCTA')}</a> · ${t('trialClaim')}</p>
       </section>
 
       <section class="section showcase-section">
@@ -669,9 +747,10 @@ function bindEvents() {
   document.querySelectorAll('.launch-link').forEach((el) => {
     el.addEventListener('click', (event) => {
       event.preventDefault();
-      window.clearTimeout(launchTimer);
-      closeRoleModal();
-      window.location.href = el.dataset.launchUrl || el.getAttribute('href');
+      const lang = currentLang();
+      syncAppLangPreference(lang);
+      const url = el.dataset.launchUrl || el.getAttribute('href');
+      window.location.href = appendLangToUrl(url, lang);
     });
   });
   document.querySelector('[data-action="close"]')?.addEventListener('click', closeRoleModal);

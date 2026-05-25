@@ -7,7 +7,15 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from app import db
 from app.config import Config
 from app.middleware.auth import get_request_user_id, write_audit
-from app.models import UserProfile
+from app.models import User, UserProfile
+from app.middleware.entitlement import paywall_response
+from app.services.entitlement_service import (
+    PaywallError,
+    check_limit,
+    consume_ai_points,
+    get_entitlements,
+    resolve_teacher_id_for_student,
+)
 from app.services.engines.deepseek_parser import DeepSeekParser
 from app.services.engines.nlp_parser import NLPParser
 from app.services.engines.resume_parser import ResumeParser
@@ -142,14 +150,35 @@ def _save_composite_profile(user_id: int, parsed: dict, payload: dict, source: s
     return prof
 
 
-def _build_composite(user_id: int, raw: str, active_tags, source: str):
+def _build_composite(user_id: int, raw: str, active_tags, source: str, *, class_id: int | None = None):
     parsed = nlp.parse(raw)
     normalized_tags = normalize_active_tags(active_tags)
     llm_analysis = {}
     llm_error = None
+    llm_mode = "rule_only"
+    user = User.query.get(user_id)
+    teacher_id = None
+    if user and user.role == "admin":
+        teacher_id = user_id
+    else:
+        teacher_id = resolve_teacher_id_for_student(user_id, class_id)
+    use_llm = False
+    if teacher_id:
+        try:
+            ent = get_entitlements(teacher_id)
+            use_llm = bool(ent["flags"].get("profile_llm_for_class"))
+        except Exception:
+            use_llm = False
     try:
-        if raw.strip() or normalized_tags:
+        if use_llm and (raw.strip() or normalized_tags):
+            consume_ai_points(teacher_id, "profile.llm")
             llm_analysis = deepseek.parse_profile(raw, normalized_tags)
+            llm_mode = "deepseek"
+        elif teacher_id and not use_llm:
+            llm_mode = "teacher_free_plan"
+    except PaywallError as exc:
+        llm_error = str(exc)
+        llm_mode = "paywall"
     except Exception as e:  # noqa: BLE001
         llm_error = str(e)
     payload = scoring.build_profile_payload(
@@ -161,9 +190,17 @@ def _build_composite(user_id: int, raw: str, active_tags, source: str):
     )
     prof = _save_composite_profile(user_id, parsed, payload, source)
     write_audit("profile_submit", "profile", prof.id, json.dumps({"source": source, "llm_error": llm_error}, ensure_ascii=False))
-    data = {"profile": prof.to_dict(), "parsed": parsed, "llm_analysis": llm_analysis, "score_breakdown": payload["score_breakdown"]}
+    data = {
+        "profile": prof.to_dict(),
+        "parsed": parsed,
+        "llm_analysis": llm_analysis,
+        "score_breakdown": payload["score_breakdown"],
+        "llm_mode": llm_mode,
+    }
     if llm_error:
         data["llm_error"] = llm_error
+    if llm_mode == "teacher_free_plan":
+        data["llm_hint"] = "当前班级教师为免费版，使用规则解析；教师开通 Pro 后自动启用 DeepSeek"
     return data
 
 
@@ -181,10 +218,31 @@ def current_profile():
     return jsonify(prof.to_dict() if prof else {})
 
 
+@bp.route("/llm-status", methods=["GET"])
+@jwt_required()
+def profile_llm_status():
+    """学生端：当前班级是否可享受教师套餐下的 DeepSeek 画像."""
+    uid = get_request_user_id()
+    teacher_id = resolve_teacher_id_for_student(uid, request.args.get("class_id", type=int))
+    if not teacher_id:
+        return jsonify({"llm_available": False, "hint": "加入班级后，将跟随任课教师的 AI 套餐"})
+    ent = get_entitlements(teacher_id)
+    return jsonify(
+        {
+            "llm_available": bool(ent["flags"].get("profile_llm_for_class")),
+            "plan_name": ent.get("plan_name"),
+            "hint": None
+            if ent["flags"].get("profile_llm_for_class")
+            else "当前为规则解析，教师开通 Pro 后全班自动启用 DeepSeek",
+        }
+    )
+
+
 @bp.route("/submit", methods=["POST"])
 @jwt_required()
 def submit_profile():
     uid = get_request_user_id()
+    class_id = None
     try:
         if request.content_type and request.content_type.startswith("multipart/form-data"):
             raw = (request.form.get("free_text") or request.form.get("raw_text") or "").strip()
@@ -198,20 +256,24 @@ def submit_profile():
                 source = "resume"
             else:
                 source = "text"
+            class_id = request.form.get("class_id", type=int)
         else:
             data = request.get_json(silent=True) or {}
             raw = (data.get("free_text") or data.get("raw_text") or "").strip()
             active_tags = data.get("active_tags") or []
             source = "text"
+            class_id = data.get("class_id")
         raw = _ensure_profile_text(raw, active_tags)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     if len(raw) > Config.TEXT_MAX_LEN:
         raw = raw[: Config.TEXT_MAX_LEN]
     try:
-        return jsonify(_build_composite(uid, raw, active_tags, source))
+        return jsonify(_build_composite(uid, raw, active_tags, source, class_id=class_id))
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    except PaywallError as exc:
+        return paywall_response(exc)
     except Exception as e:
         return jsonify({"error": "画像生成失败", "detail": str(e)}), 422
 

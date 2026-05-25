@@ -10,7 +10,9 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from app import db
 from app.middleware.auth import get_request_user_id, admin_required, write_audit
 from app.models import ClassMembership, ClassRequest, Classroom, GroupInfo, TeamActivity, TeamActivityParticipant, TeamRoom, User, UserProfile
+from app.middleware.entitlement import paywall_response
 from app.services.class_grouping import build_grouping_advice
+from app.services.entitlement_service import PaywallError, check_limit, consume_ai_points, get_entitlements, mask_ai_analysis
 
 bp = Blueprint("classroom", __name__)
 admin_bp = Blueprint("admin_classroom", __name__)
@@ -110,6 +112,13 @@ def admin_classes():
     code = (data.get("code") or "").strip() or None
     if code and Classroom.query.filter_by(code=code).first():
         return jsonify({"error": "班级代码已存在"}), 400
+    try:
+        class_count = Classroom.query.filter(Classroom.teacher_id == uid, Classroom.status == "active").count()
+        check_limit(uid, "max_classes", current=class_count, increment=1)
+    except PaywallError as exc:
+        return paywall_response(exc)
+    ent = get_entitlements(uid)
+    max_students = min(int(data.get("max_students") or 20), ent["limits"].get("max_students_per_class", 30))
     cls = Classroom(
         name=name,
         code=code,
@@ -117,7 +126,7 @@ def admin_classes():
         grade=(data.get("grade") or "").strip(),
         course_name=(data.get("course_name") or "").strip(),
         teacher_id=uid,
-        max_students=int(data.get("max_students") or 20),
+        max_students=max_students,
         status=data.get("status") or "active",
         description=(data.get("description") or "").strip(),
     )
@@ -163,6 +172,11 @@ def add_class_members(class_id):
     if data.get("user_id"):
         user_ids.append(data.get("user_id"))
     added = []
+    try:
+        member_count = len(_active_members(cls.id))
+        check_limit(get_request_user_id(), "max_students_per_class", current=member_count, increment=len(user_ids))
+    except PaywallError as exc:
+        return paywall_response(exc)
     for raw_uid in dict.fromkeys(user_ids):
         user = User.query.get(int(raw_uid))
         if not user or user.role != "user":
@@ -249,10 +263,33 @@ def review_class_request(class_id, request_id, action):
 @admin_required
 def admin_class_grouping_advice(class_id):
     Classroom.query.get_or_404(class_id)
+    uid = get_request_user_id()
     preferred = request.args.get("group_size", default=4, type=int)
-    use_llm = request.args.get("deep", default=0, type=int) == 1
+    want_deep = request.args.get("deep", default=0, type=int) == 1
+    ent = get_entitlements(uid)
+    use_llm = want_deep and ent["flags"].get("deep_grouping")
+    preview_mode = False
+    if want_deep and not use_llm:
+        try:
+            consume_ai_points(uid, "grouping.advice", allow_preview=True)
+            use_llm = True
+            preview_mode = ent["plan_code"] == "free"
+        except PaywallError as exc:
+            return paywall_response(exc)
+    elif use_llm:
+        try:
+            consume_ai_points(uid, "grouping.advice")
+        except PaywallError as exc:
+            return paywall_response(exc)
     members = _active_members(class_id)
-    return jsonify(build_grouping_advice(len(members), preferred, use_llm=use_llm))
+    advice = build_grouping_advice(len(members), preferred, use_llm=use_llm)
+    if advice.get("ai_analysis"):
+        advice["ai_analysis"] = mask_ai_analysis(
+            advice["ai_analysis"],
+            entitled=ent["flags"].get("deep_grouping") and not preview_mode,
+        )
+        advice["ai_preview"] = preview_mode
+    return jsonify(advice)
 
 
 @bp.route("/classes", methods=["GET"])

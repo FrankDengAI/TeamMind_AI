@@ -45,7 +45,20 @@ if (typeof document !== 'undefined' && (!createApp || !window.axios || !window.E
 const API_BASE = window.TEAMMIND_API_BASE || 'http://127.0.0.1:5000/api'
 const ADMIN_PORTAL_URL = window.TEAMMIND_ADMIN_URL || 'http://127.0.0.1:5000/'
 const APP_LANG_KEY = 'teammind_app_lang'
-const DEFAULT_APP_LANG = TeamMindRuntime.storage.getItem(APP_LANG_KEY) || TeamMindRuntime.storage.getItem('teammind_portal_lang') || 'zh-CN'
+const VALID_APP_LANGS = new Set(['zh-CN', 'zh-Hant', 'en', 'ja', 'ko', 'fr', 'de', 'es'])
+function resolveInitialAppLang() {
+  try {
+    const app = TeamMindRuntime.storage.getItem(APP_LANG_KEY)
+    const portal = TeamMindRuntime.storage.getItem('teammind_portal_lang')
+    const candidates = [app, portal].filter(Boolean)
+    const nonZh = candidates.find((l) => l && l !== 'zh-CN')
+    const pick = nonZh || app || portal || 'zh-CN'
+    return VALID_APP_LANGS.has(pick) ? pick : 'zh-CN'
+  } catch {
+    return 'zh-CN'
+  }
+}
+const DEFAULT_APP_LANG = resolveInitialAppLang()
 const LANGUAGE_OPTIONS = [
   { code: 'zh-CN', label: '简体中文' },
   { code: 'zh-Hant', label: '繁體中文' },
@@ -600,6 +613,61 @@ Object.assign(STUDENT_TEXT_I18N.en, {
   '已为活动“%t%”生成 %n% 个候选小组，平均均衡度 %s%。': 'Generated %n% candidate groups for activity "%t%" with average balance %s%.',
   '分析：': 'Analysis: ',
   未命名活动: 'Untitled Activity',
+  请求失败: 'Request failed',
+  请填写账号和密码: 'Please enter account and password',
+  登录成功: 'Signed in successfully',
+  '请完整填写姓名、账号和密码': 'Please fill in name, account and password',
+  '密码至少 6 位': 'Password must be at least 6 characters',
+  '注册成功，请先填写画像': 'Registered. Please complete your profile first.',
+  '登录状态已失效，请重新登录': 'Session expired. Please sign in again.',
+  个人资料已保存: 'Profile saved',
+  请填写旧密码和新密码: 'Please enter current and new password',
+  两次输入的新密码不一致: 'New passwords do not match',
+  密码已修改: 'Password updated',
+  '请至少选择主动标签，或输入 50 字以上自由描述': 'Select at least one active tag, or enter 50+ characters of free text',
+  'AI 画像已生成': 'AI profile generated',
+  '画像已生成，请等待老师分组': 'Profile generated. Wait for teacher grouping.',
+  帖子内容至少10字: 'Post content must be at least 10 characters',
+  '帖子内容至少 10 字': 'Post content must be at least 10 characters',
+  已发布: 'Posted',
+  已收藏: 'Favorited',
+  已点赞: 'Liked',
+  请先选择一个已加入的班级: 'Select a class you have joined first',
+  请填写活动标题: 'Please enter an activity title',
+  '班级活动已创建，同班同学可以看到': 'Class activity created; classmates can see it',
+  '已提交加入班级申请，等待老师审批': 'Join request submitted; awaiting teacher approval',
+  已提交退出申请: 'Leave request submitted',
+  已参与本次组队活动: 'Joined this team activity',
+  本次活动标签已更新: 'Activity tags updated',
+  请填写队伍名称: 'Please enter a team name',
+  队伍已创建: 'Team created',
+  已发送加入申请: 'Join request sent',
+  已同意申请: 'Request approved',
+  已拒绝申请: 'Request rejected',
+  已退出队伍: 'Left the team',
+  请先填写希望调整的原因: 'Please explain why you want an adjustment',
+  已确认当前候选团队与角色: 'Confirmed candidate team and role',
+  已提交微调申请: 'Adjustment request submitted',
+  '请先加入或锁定一个小组，再创建任务': 'Join or lock a group before creating tasks',
+  请填写任务名称: 'Please enter a task name',
+  '任务已创建，队友和老师都可以看到': 'Task created; visible to teammates and teacher',
+  进度已保存: 'Progress saved',
+  请填写反馈原因: 'Please enter feedback',
+  任务反馈已提交: 'Task feedback submitted',
+  学习动态: 'Learning update',
+  还没有设置个人标题: 'No headline set yet',
+  '完善头像和个人介绍，让同学更容易认识你。': 'Add an avatar and bio so classmates can get to know you.',
+  '填写你的研究方向、项目兴趣或想探索的问题': 'Add research interests, project topics or questions you want to explore',
+  管理员请使用: 'Admins please use:',
+  加载失败: 'Load failed',
+  '请说明任务过重、不适配或需要协助的原因，老师会在调优时看到：': 'Explain if the task is too heavy, a poor fit, or you need help (visible to the teacher during adjustment):',
+  '分配依据：': 'Assignment basis: ',
+  '退出班级需要老师审批，审批通过后你将不再参与该班级后续分组。确定提交申请？': 'Leaving a class requires teacher approval. You will not join future groupings in that class. Submit request?',
+  申请退出班级: 'Request to leave class',
+  '退出后需要重新创建或申请加入队伍，确定继续吗？': 'You must create or apply to a team again after leaving. Continue?',
+  退出队伍: 'Leave team',
+  '确认后老师会看到你接受当前候选团队与角色，是否继续？': 'Your teacher will see that you accept this candidate team and role. Continue?',
+  确认候选团队: 'Confirm candidate team',
 })
 
 STUDENT_TEXT_I18N.ja = {
@@ -762,7 +830,10 @@ http.interceptors.response.use(
   (r) => r,
   (err) => {
     if (!isStudentAuthFailure(err)) {
-      ElementPlus?.ElMessage?.error(err.response?.data?.error || err.message || '请求失败')
+      const errText = err.response?.data?.error || err.message || '请求失败'
+      ElementPlus?.ElMessage?.error(
+        window.TeamMindI18n?.translateAppDynamicText?.(errText, studentGetLang(), studentUiT, studentGetOpenCCFn()) || errText
+      )
     }
     if (isStudentAuthFailure(err)) {
       TeamMindRuntime.storage.removeItem('tf_token')
@@ -784,20 +855,23 @@ function safeJsonStorage(key, fallback = null) {
 
 function studentConfirm(message, title) {
   const box = ElementPlus.ElMessageBox || ElementPlus.MessageBox
-  const confirmTitle = title || studentUiT('确认操作')
+  const confirmTitle = title
+    ? (window.TeamMindI18n?.translateAppDynamicText?.(title, studentGetLang(), studentUiT, studentGetOpenCCFn()) || studentUiT(title))
+    : studentUiT('确认操作')
+  const confirmMessage = window.TeamMindI18n?.translateAppDynamicText?.(message, studentGetLang(), studentUiT, studentGetOpenCCFn()) || studentUiT(message) || message
   if (box?.confirm) {
-    return box.confirm(message, confirmTitle, {
+    return box.confirm(confirmMessage, confirmTitle, {
       type: 'warning',
       confirmButtonText: studentUiT('确定'),
       cancelButtonText: studentUiT('取消'),
     })
   }
-  return window.confirm(`${confirmTitle}\n\n${message}`) ? Promise.resolve() : Promise.reject('cancel')
+  return window.confirm(`${confirmTitle}\n\n${confirmMessage}`) ? Promise.resolve() : Promise.reject('cancel')
 }
 
 function rejectAdminAccount(userData) {
   if (userData?.user?.role === 'admin') {
-    ElementPlus.ElMessage.warning({ message: `管理员请使用：${ADMIN_PORTAL_URL}`, duration: 5000 })
+    ElementPlus.ElMessage.warning({ message: `${t('管理员请使用')}${ADMIN_PORTAL_URL}`, duration: 5000 })
     return true
   }
   return false
@@ -890,7 +964,11 @@ function tagNames(profile, dimension, limit = 4) {
 }
 
 function phraseOrFallback(names, fallback) {
-  return names.length ? names.join('、') : fallback
+  const joined = names.length ? names.join('、') : fallback
+  if (window.TeamMindI18n?.translateProfileLexicon) {
+    return window.TeamMindI18n.translateProfileLexicon(joined, studentGetLang(), studentUiT, studentGetOpenCCFn())
+  }
+  return joined
 }
 
 function uniquePush(list, name, source = '画像匹配') {
@@ -932,7 +1010,10 @@ function roleSummary(profile) {
   const skills = phraseOrFallback(tagNames(profile, 'skill', 3), studentUiT('实践执行'))
   const knowledge = phraseOrFallback(tagNames(profile, 'knowledge', 2), profile?.field || studentUiT('课程主题'))
   const tpl = studentUiT('适合在团队中围绕「%k%」参与方案推进，可优先尝试「%r%」等角色方向，并结合「%s%」完成具体任务。')
-  return tpl.replace('%k%', knowledge).replace('%r%', roles.join('、')).replace('%s%', skills)
+  const roleText = window.TeamMindI18n?.translateProfileLexicon
+    ? window.TeamMindI18n.translateProfileLexicon(roles.join('、'), studentGetLang(), studentUiT, studentGetOpenCCFn())
+    : roles.join('、')
+  return tpl.replace('%k%', knowledge).replace('%r%', roleText).replace('%s%', skills)
 }
 
 function positiveInsights(profile) {
@@ -960,16 +1041,14 @@ function positiveInsights(profile) {
 
 function profileSuggestion(profile) {
   const roles = roleCandidates(profile).slice(0, 3).map((item) => item.name).join('、')
-  return studentUiT('建议你在后续项目中优先尝试「%r%」相关任务，也可以根据小组需要灵活切换；继续通过社区分享、组内沟通和任务提交完善自己的学习画像。').replace('%r%', roles)
+  const roleText = window.TeamMindI18n?.translateProfileLexicon
+    ? window.TeamMindI18n.translateProfileLexicon(roles, studentGetLang(), studentUiT, studentGetOpenCCFn())
+    : roles
+  return studentUiT('建议你在后续项目中优先尝试「%r%」相关任务，也可以根据小组需要灵活切换；继续通过社区分享、组内沟通和任务提交完善自己的学习画像。').replace('%r%', roleText)
 }
 
 function tagDimensionClass(tag, fallback = 'skill') {
   return `badge-${tag?.dimension || fallback}`
-}
-
-function tagIcon(tag, fallback = 'skill') {
-  const dim = tag?.dimension || fallback
-  return { knowledge: studentUiT('知'), skill: studentUiT('技'), collab: studentUiT('协') }[dim] || studentUiT('标')
 }
 
 function buildAccountForm(u = {}) {
@@ -997,6 +1076,7 @@ const App = {
     const regForm = ref({ name: '', account: '', password: '' })
     const rawText = ref('')
     const profile = ref(null)
+    const profileLlmHint = ref('')
     const history = ref([])
     const tagCatalog = ref({ knowledge: [], skill: [], collab: [] })
     const activeTags = ref([])
@@ -1078,8 +1158,11 @@ const App = {
     const formatInsightText = (text) => {
       void language.value
       if (text == null || text === '') return ''
-      return window.TeamMindI18n?.translateBackendInsight(String(text), t, language.value, getStudentOpenCC()) || String(text)
+      return window.TeamMindI18n?.formatInsightForUi?.(String(text), t, language.value, getStudentOpenCC())
+        || window.TeamMindI18n?.translateAppDynamicText?.(String(text), t, language.value, getStudentOpenCC())
+        || String(text)
     }
+    const formatDynamicText = formatInsightText
     const studentDynamicPack = computed(() => STUDENT_DYNAMIC_I18N[language.value] || STUDENT_DYNAMIC_I18N.en)
     const formatActivityStatus = (status) => {
       void language.value
@@ -1100,6 +1183,41 @@ const App = {
     const localizedProfileSuggestion = computed(() => {
       void language.value
       return profileSuggestion(profile.value)
+    })
+    function translateProfileText(text) {
+      void language.value
+      if (text == null || text === '') return ''
+      if (window.TeamMindI18n?.translateProfileLexicon) {
+        return window.TeamMindI18n.translateProfileLexicon(text, language.value, t, getStudentOpenCC())
+      }
+      return String(text)
+    }
+    const displayTagCatalog = computed(() => {
+      void language.value
+      return window.TeamMindI18n?.localizeTagCatalog?.(
+        tagCatalog.value,
+        language.value,
+        t,
+        getStudentOpenCC(),
+      ) || tagCatalog.value
+    })
+    const tagIcon = (tag, fallback = 'skill') => {
+      void language.value
+      const dim = tag?.dimension || fallback
+      if (language.value === 'en') {
+        return { knowledge: 'K', skill: 'S', collab: 'C' }[dim] || '·'
+      }
+      const collab = language.value === 'zh-Hant' ? '協' : '协'
+      return { knowledge: '知', skill: '技', collab }[dim] || '标'
+    }
+    const localizedRoleCandidates = computed(() => {
+      void language.value
+      if (!profile.value) return []
+      return roleCandidates(profile.value).map((role) => ({
+        ...role,
+        name: translateProfileText(role.name),
+        source: translateProfileText(role.source),
+      }))
     })
     const navItems = computed(() => NAV_ITEMS.map((item) => {
       const translated = STUDENT_I18N[language.value]?.nav?.[item.key]
@@ -1163,30 +1281,30 @@ const App = {
 
     async function doLogin() {
       if (!loginForm.value.account.trim() || !loginForm.value.password) {
-        return ElementPlus.ElMessage.warning('请填写账号和密码')
+        return ElementPlus.ElMessage.warning(t('请填写账号和密码'))
       }
       loading.value = true
       try {
         const { data } = await http.post('/auth/login', loginForm.value)
         if (rejectAdminAccount(data)) return
         setAuth(data)
-        ElementPlus.ElMessage.success('登录成功')
+        ElementPlus.ElMessage.success(t('登录成功'))
         await Promise.all([loadHistory(), loadTagCatalog()])
       } finally { loading.value = false }
     }
 
     async function doRegister() {
       if (!regForm.value.name.trim() || !regForm.value.account.trim() || !regForm.value.password) {
-        return ElementPlus.ElMessage.warning('请完整填写姓名、账号和密码')
+        return ElementPlus.ElMessage.warning(t('请完整填写姓名、账号和密码'))
       }
       if (regForm.value.password.length < 6) {
-        return ElementPlus.ElMessage.warning('密码至少 6 位')
+        return ElementPlus.ElMessage.warning(t('密码至少 6 位'))
       }
       loading.value = true
       try {
         const { data } = await http.post('/auth/register', regForm.value)
         setAuth(data)
-        ElementPlus.ElMessage.success('注册成功，请先填写画像')
+        ElementPlus.ElMessage.success(t('注册成功，请先填写画像'))
         await Promise.all([loadHistory(), loadTagCatalog()])
       } finally { loading.value = false }
     }
@@ -1209,7 +1327,7 @@ const App = {
       token.value = ''
       user.value = null
       page.value = 'login'
-      ElementPlus.ElMessage.warning('登录状态已失效，请重新登录')
+      ElementPlus.ElMessage.warning(t('登录状态已失效，请重新登录'))
     }
 
     async function loadMe() {
@@ -1219,6 +1337,15 @@ const App = {
       TeamMindRuntime.storage.setItem('tf_user', JSON.stringify(data))
     }
 
+    async function loadProfileLlmStatus() {
+      try {
+        const { data } = await http.get('/profile/llm-status')
+        profileLlmHint.value = data.llm_available ? '' : (data.hint || '')
+      } catch {
+        profileLlmHint.value = ''
+      }
+    }
+
     async function saveAccount() {
       loading.value = true
       try {
@@ -1226,19 +1353,19 @@ const App = {
         user.value = data
         accountForm.value = buildAccountForm(data)
         TeamMindRuntime.storage.setItem('tf_user', JSON.stringify(data))
-        ElementPlus.ElMessage.success('个人资料已保存')
+        ElementPlus.ElMessage.success(t('个人资料已保存'))
       } finally { loading.value = false }
     }
 
     async function changePassword() {
       if (!passwordForm.value.old_password || !passwordForm.value.new_password) {
-        return ElementPlus.ElMessage.warning('请填写旧密码和新密码')
+        return ElementPlus.ElMessage.warning(t('请填写旧密码和新密码'))
       }
       if (passwordForm.value.new_password.length < 6) {
         return ElementPlus.ElMessage.warning('新密码至少 6 位')
       }
       if (passwordForm.value.new_password !== passwordForm.value.confirm_password) {
-        return ElementPlus.ElMessage.warning('两次输入的新密码不一致')
+        return ElementPlus.ElMessage.warning(t('两次输入的新密码不一致'))
       }
       loading.value = true
       try {
@@ -1247,7 +1374,7 @@ const App = {
           new_password: passwordForm.value.new_password,
         })
         passwordForm.value = { old_password: '', new_password: '', confirm_password: '' }
-        ElementPlus.ElMessage.success('密码已修改')
+        ElementPlus.ElMessage.success(t('密码已修改'))
       } finally { loading.value = false }
     }
 
@@ -1307,8 +1434,9 @@ const App = {
     }
 
     function groupedTags(dimension) {
-      return (tagCatalog.value[dimension] || []).reduce((acc, tag) => {
-        const category = tag.category || '其他'
+      void language.value
+      return (displayTagCatalog.value[dimension] || []).reduce((acc, tag) => {
+        const category = tag.displayCategory || tag.category || translateProfileText('其他')
         if (!acc[category]) acc[category] = []
         acc[category].push(tag)
         return acc
@@ -1316,7 +1444,8 @@ const App = {
     }
 
     function hotTags(dimension) {
-      return (tagCatalog.value[dimension] || []).slice(0, 12)
+      void language.value
+      return (displayTagCatalog.value[dimension] || []).slice(0, 12)
     }
 
     function tagNamesByDimension(dimension) {
@@ -1352,14 +1481,16 @@ const App = {
     async function parseText() {
       const text = rawText.value.trim()
       if (!activeTags.value.length && text.length < 50) {
-        return ElementPlus.ElMessage.warning('请至少选择主动标签，或输入 50 字以上自由描述')
+        return ElementPlus.ElMessage.warning(t('请至少选择主动标签，或输入 50 字以上自由描述'))
       }
       loading.value = true
       startCalcProgress()
       try {
         const { data } = await http.post('/profile/submit', { raw_text: text, active_tags: activeTags.value })
         profile.value = data.profile
-        ElementPlus.ElMessage.success('画像已生成，请等待老师分组')
+        if (data.llm_hint) profileLlmHint.value = data.llm_hint
+        else if (!profileLlmHint.value) profileLlmHint.value = ''
+        ElementPlus.ElMessage.success(data.llm_mode === 'deepseek' ? t('AI 画像已生成') : t('画像已生成，请等待老师分组'))
         await loadHistory()
         finishCalcProgress()
       } catch (e) {
@@ -1403,7 +1534,7 @@ const App = {
     }
 
     async function createPost() {
-      if (postForm.value.content.length < 10) return ElementPlus.ElMessage.warning('帖子内容至少 10 字')
+      if (postForm.value.content.length < 10) return ElementPlus.ElMessage.warning(t('帖子内容至少 10 字'))
       const fd = new FormData()
       fd.append('title', postForm.value.title)
       fd.append('content', postForm.value.content)
@@ -1413,7 +1544,7 @@ const App = {
       loading.value = true
       try {
         await http.post('/community/posts', fd)
-        ElementPlus.ElMessage.success('已发布')
+        ElementPlus.ElMessage.success(t('已发布'))
         postForm.value = { title: '', content: '', tags: [], is_anonymous: false }
         postMedia.value = []
         await loadFeed()
@@ -1422,7 +1553,7 @@ const App = {
 
     async function interactPost(post, type) {
       await http.post(`/community/posts/${post.id}/${type}`)
-      ElementPlus.ElMessage.success(type === 'favorite' ? '已收藏' : '已点赞')
+      ElementPlus.ElMessage.success(type === 'favorite' ? t('已收藏') : t('已点赞'))
       await loadFeed()
       await loadHistory()
     }
@@ -1522,12 +1653,12 @@ const App = {
 
     async function createClassActivity() {
       const classId = selectedStudentClassId.value
-      if (!classId) return ElementPlus.ElMessage.warning('请先选择一个已加入的班级')
-      if (!classActivityForm.value.title.trim()) return ElementPlus.ElMessage.warning('请填写活动标题')
+      if (!classId) return ElementPlus.ElMessage.warning(t('请先选择一个已加入的班级'))
+      if (!classActivityForm.value.title.trim()) return ElementPlus.ElMessage.warning(t('请填写活动标题'))
       loading.value = true
       try {
         await http.post(`/classes/${classId}/activities`, classActivityForm.value)
-        ElementPlus.ElMessage.success('班级活动已创建，同班同学可以看到')
+        ElementPlus.ElMessage.success(t('班级活动已创建，同班同学可以看到'))
         classActivityForm.value = { title: '', mode: 'free_team', group_size: 4, task_goal: '', description: '' }
         await Promise.all([loadClassActivities(classId), loadActivities()])
       } finally { loading.value = false }
@@ -1539,7 +1670,7 @@ const App = {
       try {
         await http.post(`/classes/${cls.id}/join-request`, { message: classRequestMessage.value })
         classRequestMessage.value = ''
-        ElementPlus.ElMessage.success('已提交加入班级申请，等待老师审批')
+        ElementPlus.ElMessage.success(t('已提交加入班级申请，等待老师审批'))
         await loadStudentClasses()
       } finally { loading.value = false }
     }
@@ -1556,7 +1687,7 @@ const App = {
       try {
         await http.post(`/classes/${cls.id}/leave-request`, { message: classRequestMessage.value })
         classRequestMessage.value = ''
-        ElementPlus.ElMessage.success('已提交退出申请')
+        ElementPlus.ElMessage.success(t('已提交退出申请'))
         await loadStudentClasses()
       } finally { loading.value = false }
     }
@@ -1581,7 +1712,7 @@ const App = {
       loading.value = true
       try {
         await http.post(`/team-activities/${activity.id}/join`, { active_tags: activeTags.value })
-        ElementPlus.ElMessage.success('已参与本次组队活动')
+        ElementPlus.ElMessage.success(t('已参与本次组队活动'))
         await loadActivities()
       } finally { loading.value = false }
     }
@@ -1591,7 +1722,7 @@ const App = {
       loading.value = true
       try {
         await http.put(`/team-activities/${activity.id}/tags`, { active_tags: activeTags.value })
-        ElementPlus.ElMessage.success('本次活动标签已更新')
+        ElementPlus.ElMessage.success(t('本次活动标签已更新'))
         await loadActivities()
       } finally { loading.value = false }
     }
@@ -1606,12 +1737,12 @@ const App = {
     async function createTeamRoom() {
       const activity = currentActivity.value
       if (!activity) return
-      if (!teamForm.value.name.trim()) return ElementPlus.ElMessage.warning('请填写队伍名称')
+      if (!teamForm.value.name.trim()) return ElementPlus.ElMessage.warning(t('请填写队伍名称'))
       loading.value = true
       try {
         await http.post(`/team-activities/${activity.id}/teams`, teamForm.value)
         teamForm.value = { name: '', description: '', desired_tags: [] }
-        ElementPlus.ElMessage.success('队伍已创建')
+        ElementPlus.ElMessage.success(t('队伍已创建'))
         await loadActivityTeams()
       } finally { loading.value = false }
     }
@@ -1623,7 +1754,7 @@ const App = {
       try {
         await http.post(`/team-activities/${activity.id}/teams/${room.id}/join-request`, { message: joinMessage.value })
         joinMessage.value = ''
-        ElementPlus.ElMessage.success('已发送加入申请')
+        ElementPlus.ElMessage.success(t('已发送加入申请'))
         await loadActivityTeams()
       } finally { loading.value = false }
     }
@@ -1634,7 +1765,7 @@ const App = {
       loading.value = true
       try {
         await http.post(`/team-activities/${activity.id}/requests/${req.id}/${action}`)
-        ElementPlus.ElMessage.success(action === 'approve' ? '已同意申请' : '已拒绝申请')
+        ElementPlus.ElMessage.success(action === 'approve' ? t('已同意申请') : t('已拒绝申请'))
         await loadActivityTeams()
       } finally { loading.value = false }
     }
@@ -1650,7 +1781,7 @@ const App = {
       loading.value = true
       try {
         await http.post(`/team-activities/${activity.id}/teams/${room.id}/leave`)
-        ElementPlus.ElMessage.success('已退出队伍')
+        ElementPlus.ElMessage.success(t('已退出队伍'))
         await loadActivityTeams()
       } finally { loading.value = false }
     }
@@ -1659,7 +1790,7 @@ const App = {
       const activity = currentActivity.value
       if (!activity || !myGroup.value) return
       if (!accept && !confirmationForm.value.reason.trim()) {
-        return ElementPlus.ElMessage.warning('请先填写希望调整的原因')
+        return ElementPlus.ElMessage.warning(t('请先填写希望调整的原因'))
       }
       if (accept) {
         try {
@@ -1678,7 +1809,7 @@ const App = {
           reason: confirmationForm.value.reason,
           message: confirmationForm.value.message,
         })
-        ElementPlus.ElMessage.success(accept ? '已确认当前候选团队与角色' : '已提交微调申请')
+        ElementPlus.ElMessage.success(accept ? t('已确认当前候选团队与角色') : t('已提交微调申请'))
         confirmationForm.value = { preferred_role: '', reason: '', task_preferences: '', message: '' }
         await loadActivities()
         await loadGroups()
@@ -1692,15 +1823,15 @@ const App = {
 
     async function createStudentTask() {
       const gid = groupId.value || myGroup.value?.id || personal.value.groups?.[0]?.id
-      if (!gid) return ElementPlus.ElMessage.warning('请先加入或锁定一个小组，再创建任务')
-      if (!taskCreateForm.value.task_name.trim()) return ElementPlus.ElMessage.warning('请填写任务名称')
+      if (!gid) return ElementPlus.ElMessage.warning(t('请先加入或锁定一个小组，再创建任务'))
+      if (!taskCreateForm.value.task_name.trim()) return ElementPlus.ElMessage.warning(t('请填写任务名称'))
       loading.value = true
       try {
         await http.post('/task/create', {
           ...taskCreateForm.value,
           group_id: gid,
         })
-        ElementPlus.ElMessage.success('任务已创建，队友和老师都可以看到')
+        ElementPlus.ElMessage.success(t('任务已创建，队友和老师都可以看到'))
         taskCreateForm.value = { task_name: '', description: '', reason: '', difficulty: 3, estimated_hours: 2, deadline: '' }
         await loadPersonal()
         if (page.value === 'team') await loadTeamDashboard()
@@ -1724,16 +1855,16 @@ const App = {
       loading.value = true
       try {
         await http.post(`/task/${taskId}/progress`, { progress, submit_status: 'on_time' })
-        ElementPlus.ElMessage.success('进度已保存')
+        ElementPlus.ElMessage.success(t('进度已保存'))
         await loadPersonal()
         if (page.value === 'team') await loadTeamDashboard()
       } finally { loading.value = false }
     }
 
     async function submitTaskFeedback(task) {
-      const message = window.prompt('请说明任务过重、不适配或需要协助的原因，老师会在调优时看到：', '')
+      const message = window.prompt(t('请说明任务过重、不适配或需要协助的原因，老师会在调优时看到：'), '')
       if (message === null) return
-      if (!message.trim()) return ElementPlus.ElMessage.warning('请填写反馈原因')
+      if (!message.trim()) return ElementPlus.ElMessage.warning(t('请填写反馈原因'))
       const expected = window.prompt('你希望如何调整？例如：拆分任务、换负责人、延后截止、需要同伴协助。', '')
       loading.value = true
       try {
@@ -1743,7 +1874,7 @@ const App = {
           expected_adjustment: expected || '',
           workload: 4,
         })
-        ElementPlus.ElMessage.success('任务反馈已提交')
+        ElementPlus.ElMessage.success(t('任务反馈已提交'))
         await loadPersonal()
       } finally { loading.value = false }
     }
@@ -1778,7 +1909,10 @@ const App = {
       }
       updateDocumentTitle()
       stopRefresh()
-      if (p === 'profile') loadHistory()
+      if (p === 'profile') {
+        loadHistory()
+        loadProfileLlmStatus()
+      }
       if (p === 'classes') loadStudentClasses()
       if (p === 'team') { loadActivities().then(() => loadGroups()).then(() => { loadTeamDashboard(); startRefresh() }) }
       if (p === 'tasks') loadPersonal()
@@ -1793,6 +1927,16 @@ const App = {
       TeamMindRuntime.storage.setItem('teammind_portal_lang', language.value)
       document.documentElement.lang = language.value
       updateDocumentTitle()
+      try {
+        const u = new URL(window.location.href)
+        if (language.value === 'zh-CN') u.searchParams.delete('lang')
+        else u.searchParams.set('lang', language.value)
+        window.history.replaceState(null, '', u.pathname + u.search + u.hash)
+      } catch {
+        // ignore
+      }
+      globalThis.teammindApplyBootInline?.()
+      globalThis.TeamMindI18n?.applyBootScreenI18n?.('student')
     }
 
     function onHashChange() {
@@ -1802,6 +1946,9 @@ const App = {
 
     onMounted(() => {
       setLanguage(language.value)
+      globalThis.teammindApplyBootInline?.()
+      globalThis.TeamMindI18n?.applyBootScreenI18n?.('student')
+      globalThis.TeamMindI18n?.hideBootScreen?.()
       window.addEventListener('teammind-auth-expired', handleAuthExpired)
       clearStaleAdminSession()
       if (isLoggedIn.value) {
@@ -1829,19 +1976,19 @@ const App = {
 
     return {
       NAV_ITEMS, navItems, page, user, isLoggedIn, loading, tab, loginForm, regForm,
-      rawText, profile, history, groups, personal, groupId, teamDashboard,
+      rawText, profile, profileLlmHint, history, groups, personal, groupId, teamDashboard,
       availableClasses, myClassData, myClassMemberships, myClassRequests, classRequestMessage,
       selectedStudentClassId, selectedStudentClass, activeClassMemberships, classActivities, classActivityForm,
       activities, selectedActivityId, currentActivity, myParticipant, myConfirmation, isConfirmationStage, confirmationSummary,
       activityTeams, teamForm, joinMessage, myRoom, confirmationForm, candidateMembers,
-      tagCatalog, activeTags, customTag, profileTab, resumeFile, calculating, calculateProgress, calculateText,
+      tagCatalog, displayTagCatalog, activeTags, customTag, profileTab, resumeFile, calculating, calculateProgress, calculateText,
       communityFeed, postForm, postMedia, commentInputs, expandedComments,
       conversations, messages, chatTargetId, chatConversationId, chatInput,
       currentNav, personalAlerts, myGroup, myTeamRole, teammates,
       language, LANGUAGE_OPTIONS, t, setLanguage,
-      ADMIN_PORTAL_URL, scorePct, scoreStyle, scoreLevel, userInitial, userAvatar, activityDisplayTitle, displayDemoText, formatGroupingAdviceText, formatInsightText, formatActivityStatus, demoImageFallback, riskTagType, formatDeadline,
+      ADMIN_PORTAL_URL, scorePct, scoreStyle, scoreLevel, userInitial, userAvatar, activityDisplayTitle, displayDemoText, formatGroupingAdviceText, formatDynamicText, formatInsightText, formatActivityStatus, demoImageFallback, riskTagType, formatDeadline,
       roleTitle, roleCandidates, roleSummary, positiveInsights, profileSuggestion,
-      localizedRoleSummary, localizedPositiveInsights, localizedProfileSuggestion,
+      localizedRoleSummary, localizedPositiveInsights, localizedProfileSuggestion, localizedRoleCandidates, translateProfileText,
       tagDimensionClass, tagIcon,
       accountForm, passwordForm, taskCreateForm, doLogin, doRegister, logout, loadMe, saveAccount, changePassword, parseText, parseResume, onResumeFile, updateProgress, submitTaskFeedback, createStudentTask, loadTeamDashboard, go,
       loadStudentClasses, loadClassActivities, createClassActivity, requestJoinClass, requestLeaveClass,
@@ -2006,8 +2153,8 @@ const App = {
                 <el-table-column :label="t('班级')"><template #default="{row}">{{ displayDemoText(row.classroom?.name) || row.class_id }}</template></el-table-column>
                 <el-table-column :label="t('类型')" width="90"><template #default="{row}">{{ row.request_type==='join' ? t('加入') : t('退出') }}</template></el-table-column>
                 <el-table-column :label="t('状态')" width="100"><template #default="{row}"><el-tag size="small">{{ formatActivityStatus(row.status) }}</el-tag></template></el-table-column>
-                <el-table-column prop="message" :label="t('说明')" />
-                <el-table-column prop="reviewed_note" :label="t('老师备注')" />
+                <el-table-column :label="t('说明')"><template #default="{row}">{{ formatDynamicText(row.message) || '—' }}</template></el-table-column>
+                <el-table-column :label="t('老师备注')"><template #default="{row}">{{ formatDynamicText(row.reviewed_note) || '—' }}</template></el-table-column>
               </el-table>
             </div>
 
@@ -2018,7 +2165,7 @@ const App = {
                   <p class="hint">{{ t('选择你所属的班级，查看该班当前组队活动；也可以为这个班级发起一个活动。') }}</p>
                 </div>
                 <el-select v-model="selectedStudentClassId" :placeholder="t('选择班级')" style="width:260px" @change="loadClassActivities">
-                  <el-option v-for="m in activeClassMemberships" :key="m.class_id" :label="m.classroom?.name || (t('班级') + m.class_id)" :value="m.class_id" />
+                  <el-option v-for="m in activeClassMemberships" :key="m.class_id" :label="displayDemoText(m.classroom?.name) || (t('班级') + m.class_id)" :value="m.class_id" />
                 </el-select>
               </div>
               <div v-if="selectedStudentClass" class="student-class-activity-create">
@@ -2050,7 +2197,7 @@ const App = {
               <div>
                 <span class="activity-pill">{{ currentActivity.mode==='task_auto' ? t('任务驱动组队') : t('自由组队') }}</span>
                 <h3>{{ activityDisplayTitle(currentActivity) }}</h3>
-                <p>{{ currentActivity.task_goal || currentActivity.description || t('老师已发起新的组队活动，请选择是否参与。') }}</p>
+                <p>{{ formatDynamicText(currentActivity.task_goal || currentActivity.description) || t('老师已发起新的组队活动，请选择是否参与。') }}</p>
               </div>
               <div class="activity-hero-actions">
                 <el-tag :type="myParticipant ? 'success' : 'warning'">{{ myParticipant ? t('已参与') : t('待参与') }}</el-tag>
@@ -2061,6 +2208,7 @@ const App = {
             <div class="theory-panel">
               <h4>{{ t('先完成你的项目名片') }}</h4>
               <p>{{ t('选择几个与你相关的标签，系统会整理出适合你的角色方向。也可以补充一段自我介绍，让建议更准确。') }}</p>
+              <p v-if="profileLlmHint" class="hint" style="margin-top:8px;color:#b45309">{{ formatDynamicText(profileLlmHint) }}</p>
             </div>
             <div class="card profile-tag-card">
               <div class="profile-card-head">
@@ -2087,13 +2235,13 @@ const App = {
                       </div>
                       <span>{{ (tagCatalog.knowledge||[]).length }} {{ t('个标签') }}</span>
                     </div>
-                    <el-select :model-value="tagNamesByDimension('knowledge')" multiple filterable clearable :placeholder="t('搜索或下拉选择知识标签')" class="tag-select" @change="(names)=>setTagsForDimension('knowledge', names)">
+                    <el-select :key="'knowledge-' + language" :model-value="tagNamesByDimension('knowledge')" multiple filterable clearable :placeholder="t('搜索或下拉选择知识标签')" class="tag-select" @change="(names)=>setTagsForDimension('knowledge', names)">
                       <el-option-group v-for="(items, category) in groupedTags('knowledge')" :key="category" :label="category">
-                        <el-option v-for="t in items" :key="t.id" :label="t.name" :value="t.name" />
+                        <el-option v-for="tag in items" :key="tag.id" :label="tag.displayName || tag.name" :value="tag.name" />
                       </el-option-group>
                     </el-select>
                     <div class="tag-picker">
-                      <el-tag v-for="t in hotTags('knowledge')" :key="t.id" :type="isTagSelected(t.name)?'primary':'info'" effect="plain" class="pick-tag" @click="toggleTag(t,'knowledge')">{{ t.name }}</el-tag>
+                      <el-tag v-for="tag in hotTags('knowledge')" :key="tag.id" :type="isTagSelected(tag.name)?'primary':'info'" effect="plain" class="pick-tag" @click="toggleTag(tag,'knowledge')">{{ tag.displayName || tag.name }}</el-tag>
                     </div>
                   </div>
                   <div class="tag-section dimension-skill">
@@ -2104,13 +2252,13 @@ const App = {
                       </div>
                       <span>{{ (tagCatalog.skill||[]).length }} {{ t('个标签') }}</span>
                     </div>
-                    <el-select :model-value="tagNamesByDimension('skill')" multiple filterable clearable :placeholder="t('搜索或下拉选择技能标签')" class="tag-select" @change="(names)=>setTagsForDimension('skill', names)">
+                    <el-select :key="'skill-' + language" :model-value="tagNamesByDimension('skill')" multiple filterable clearable :placeholder="t('搜索或下拉选择技能标签')" class="tag-select" @change="(names)=>setTagsForDimension('skill', names)">
                       <el-option-group v-for="(items, category) in groupedTags('skill')" :key="category" :label="category">
-                        <el-option v-for="t in items" :key="t.id" :label="t.name" :value="t.name" />
+                        <el-option v-for="tag in items" :key="tag.id" :label="tag.displayName || tag.name" :value="tag.name" />
                       </el-option-group>
                     </el-select>
                     <div class="tag-picker">
-                      <el-tag v-for="t in hotTags('skill')" :key="t.id" :type="isTagSelected(t.name)?'primary':'info'" effect="plain" class="pick-tag" @click="toggleTag(t,'skill')">{{ t.name }}</el-tag>
+                      <el-tag v-for="tag in hotTags('skill')" :key="tag.id" :type="isTagSelected(tag.name)?'primary':'info'" effect="plain" class="pick-tag" @click="toggleTag(tag,'skill')">{{ tag.displayName || tag.name }}</el-tag>
                     </div>
                   </div>
                   <div class="tag-section dimension-collab">
@@ -2121,13 +2269,13 @@ const App = {
                       </div>
                       <span>{{ (tagCatalog.collab||[]).length }} {{ t('个标签') }}</span>
                     </div>
-                    <el-select :model-value="tagNamesByDimension('collab')" multiple filterable clearable :placeholder="t('搜索或下拉选择协作标签')" class="tag-select" @change="(names)=>setTagsForDimension('collab', names)">
+                    <el-select :key="'collab-' + language" :model-value="tagNamesByDimension('collab')" multiple filterable clearable :placeholder="t('搜索或下拉选择协作标签')" class="tag-select" @change="(names)=>setTagsForDimension('collab', names)">
                       <el-option-group v-for="(items, category) in groupedTags('collab')" :key="category" :label="category">
-                        <el-option v-for="t in items" :key="t.id" :label="t.name" :value="t.name" />
+                        <el-option v-for="tag in items" :key="tag.id" :label="tag.displayName || tag.name" :value="tag.name" />
                       </el-option-group>
                     </el-select>
                     <div class="tag-picker">
-                      <el-tag v-for="t in hotTags('collab')" :key="t.id" :type="isTagSelected(t.name)?'primary':'info'" effect="plain" class="pick-tag" @click="toggleTag(t,'collab')">{{ t.name }}</el-tag>
+                      <el-tag v-for="tag in hotTags('collab')" :key="tag.id" :type="isTagSelected(tag.name)?'primary':'info'" effect="plain" class="pick-tag" @click="toggleTag(tag,'collab')">{{ tag.displayName || tag.name }}</el-tag>
                     </div>
                   </div>
                   <div class="custom-tag-panel">
@@ -2142,8 +2290,8 @@ const App = {
                   <div class="selected-tags-panel">
                     <strong>{{ t('已选') }} {{ activeTags.length }} {{ t('个：') }}</strong>
                     <div class="selected-tags-list">
-                      <el-tag v-for="t in activeTags" :key="t.name" closable @close="activeTags=activeTags.filter(x=>x.name!==t.name)" :class="['selected-tag', tagDimensionClass(t)]">
-                        <span class="tag-chip-icon">{{ tagIcon(t) }}</span>{{ t.name }}
+                      <el-tag v-for="tag in activeTags" :key="tag.name" closable @close="activeTags=activeTags.filter(x=>x.name!==tag.name)" :class="['selected-tag', tagDimensionClass(tag)]">
+                        <span class="tag-chip-icon">{{ tagIcon(tag) }}</span>{{ translateProfileText(tag.name) }}
                       </el-tag>
                     </div>
                   </div>
@@ -2178,7 +2326,7 @@ const App = {
               <div class="role-hero">
                 <div class="role-badge">{{ t('适合以下角色方向') }}</div>
                 <div class="role-options">
-                  <div v-for="(role, idx) in roleCandidates(profile)" :key="role.name" class="role-option" :class="'rank-' + idx">
+                  <div v-for="(role, idx) in localizedRoleCandidates" :key="role.name + '-' + idx" class="role-option" :class="'rank-' + idx">
                     <span class="role-rank">{{ idx + 1 }}</span>
                     <strong>{{ role.name }}</strong>
                     <small>{{ role.source }}</small>
@@ -2196,14 +2344,14 @@ const App = {
               <div class="profile-insight-grid">
                 <div class="profile-insight" v-if="profile.active_tags?.length">
                   <h4>{{ t('你选择的标签') }}</h4>
-                  <span v-for="t in profile.active_tags" :key="t.name" class="ability-badge" :class="tagDimensionClass(t)">
-                    <b>{{ tagIcon(t) }}</b>{{ t.name }}
+                  <span v-for="tag in profile.active_tags" :key="tag.name" class="ability-badge" :class="tagDimensionClass(tag)">
+                    <b>{{ tagIcon(tag) }}</b>{{ translateProfileText(tag.name) }}
                   </span>
                 </div>
                 <div class="profile-insight" v-if="profile.passive_tags?.length">
                   <h4>{{ t('学习互动标签') }}</h4>
-                  <span v-for="t in profile.passive_tags" :key="t.name" class="ability-badge passive" :class="tagDimensionClass(t)">
-                    <b>{{ tagIcon(t) }}</b>{{ t.name }}
+                  <span v-for="tag in profile.passive_tags" :key="tag.name" class="ability-badge passive" :class="tagDimensionClass(tag)">
+                    <b>{{ tagIcon(tag) }}</b>{{ translateProfileText(tag.name) }}
                   </span>
                 </div>
               </div>
@@ -2225,7 +2373,7 @@ const App = {
                 <div class="activity-board-main">
                   <span class="activity-pill">{{ currentActivity?.mode==='task_auto' ? t('任务驱动自动组队') : t('学生自由组队') }}</span>
                   <h2>{{ activityDisplayTitle(currentActivity) }}</h2>
-                  <p>{{ currentActivity?.task_goal || currentActivity?.description || t('请按老师要求参与本次组队活动。') }}</p>
+                  <p>{{ formatDynamicText(currentActivity?.task_goal || currentActivity?.description) || t('请按老师要求参与本次组队活动。') }}</p>
                   <div class="activity-board-actions">
                     <el-button v-if="!myParticipant" type="primary" @click="joinActivity()">{{ t('参与本次活动') }}</el-button>
                     <el-button v-else type="primary" plain @click="syncActivityTags()">{{ t('同步我的标签') }}</el-button>
@@ -2309,7 +2457,7 @@ const App = {
                       <div class="member-avatar">{{ userInitial(m.name) }}</div>
                       <div>
                         <strong>{{ m.name }}{{ m.id===user?.id ? t('（我）') : '' }}</strong>
-                        <div class="hint">{{ m.bio || '暂未填写个人介绍' }}</div>
+                        <div class="hint">{{ m.bio ? formatDynamicText(m.bio) : t('暂未填写个人介绍') }}</div>
                       </div>
                     </div>
                     <el-button v-if="m.id!==user?.id" size="small" plain @click="startChat(m.id)">{{ t('发消息沟通') }}</el-button>
@@ -2317,7 +2465,7 @@ const App = {
                 </div>
                 <el-form label-position="top" class="confirm-form">
                   <el-form-item :label="t('希望承担/调整的角色（可选）')">
-                    <el-input v-model="confirmationForm.preferred_role" :placeholder="myConfirmation?.preferred_role || myTeamRole || t('如：技术开发、文档汇报、协调对接')" />
+                    <el-input v-model="confirmationForm.preferred_role" :placeholder="translateProfileText(myConfirmation?.preferred_role || myTeamRole) || t('如：技术开发、文档汇报、协调对接')" />
                   </el-form-item>
                   <el-form-item :label="t('希望承担或避免的任务（可选）')">
                     <el-input v-model="confirmationForm.task_preferences" :placeholder="t('如：愿意做原型；不适合后端；需要同伴协助数据分析')" />
@@ -2339,7 +2487,7 @@ const App = {
               </div>
               <div class="card highlight-card" v-if="myTeamRole">
                 <p>{{ t('你在') }} <strong>{{ myGroup?.group_name }}</strong> {{ t('中的角色') }}</p>
-                <el-tag type="primary" size="large">{{ myTeamRole }}</el-tag>
+                <el-tag type="primary" size="large">{{ translateProfileText(myTeamRole) }}</el-tag>
               </div>
               <div class="card toolbar-row" v-if="groups.length > 1">
                 <el-select v-model="groupId" @change="loadTeamDashboard" style="width:220px">
@@ -2349,11 +2497,11 @@ const App = {
                 <span class="hint">{{ t('每 30 秒自动刷新团队数据') }}</span>
               </div>
               <template v-if="teamDashboard">
-                <p v-if="teamDashboard.grouping_explain" class="explain-banner">{{ t('本组组队依据：') }} {{ teamDashboard.grouping_explain }}</p>
+                <p v-if="teamDashboard.grouping_explain" class="explain-banner">{{ t('本组组队依据：') }} {{ formatDynamicText(teamDashboard.grouping_explain) }}</p>
                 <div v-if="teamDashboard.group?.ai_analysis" class="student-ai-card">
                   <strong>{{ t('AI 团队协作建议') }}</strong>
-                  <p>{{ teamDashboard.group.ai_analysis.summary }}</p>
-                  <span v-for="x in teamDashboard.group.ai_analysis.recommendations||[]" :key="x">{{ x }}</span>
+                  <p>{{ formatDynamicText(teamDashboard.group.ai_analysis.summary) }}</p>
+                  <span v-for="x in teamDashboard.group.ai_analysis.recommendations||[]" :key="x">{{ formatDynamicText(x) }}</span>
                 </div>
                 <div class="summary-pills">
                   <span class="pill">{{ t('团队完成率') }} {{ teamDashboard.summary?.completion_rate }}</span>
@@ -2367,9 +2515,9 @@ const App = {
                         <div class="member-avatar">{{ userInitial(m.user?.name) }}</div>
                         <div>
                           <strong>{{ m.user?.name }}{{ m.user?.id===user?.id ? t('（我）') : '' }}</strong>
-                          <div style="font-size:12px;color:#64748b">{{ m.team_role || t('角色待定') }}</div>
+                          <div style="font-size:12px;color:#64748b">{{ m.team_role ? translateProfileText(m.team_role) : t('角色待定') }}</div>
                         </div>
-                        <el-tag size="small" :type="m.engagement?.engagement_level==='low'?'danger':'success'">{{ m.engagement?.engagement_label }}</el-tag>
+                        <el-tag size="small" :type="m.engagement?.engagement_level==='low'?'danger':'success'">{{ formatDynamicText(m.engagement?.engagement_label) }}</el-tag>
                       </div>
                       <el-progress :percentage="m.engagement?.avg_progress||0" />
                     </div>
@@ -2384,13 +2532,13 @@ const App = {
                     <el-button type="primary" plain @click="go('tasks')">{{ t('我想创建任务') }}</el-button>
                   </div>
                   <el-table v-if="(teamDashboard.tasks||[]).length" :data="teamDashboard.tasks" stripe>
-                    <el-table-column prop="task_name" :label="t('任务')" min-width="160" />
+                    <el-table-column :label="t('任务')" min-width="160"><template #default="{row}">{{ formatDynamicText(row.task_name) }}</template></el-table-column>
                     <el-table-column :label="t('负责人')" width="120">
                       <template #default="{row}">
                         {{ (teamDashboard.members||[]).find(m=>m.user?.id===row.assignee_id)?.user?.name || (t('用户') + row.assignee_id) }}
                       </template>
                     </el-table-column>
-                    <el-table-column :label="t('说明')" min-width="220"><template #default="{row}"><span class="explain-text">{{ row.assign_reason || row.description || '—' }}</span></template></el-table-column>
+                    <el-table-column :label="t('说明')" min-width="220"><template #default="{row}"><span class="explain-text">{{ formatDynamicText(row.assign_reason || row.description) || '—' }}</span></template></el-table-column>
                     <el-table-column :label="t('截止')" width="110"><template #default="{row}">{{ formatDeadline(row.deadline) }}</template></el-table-column>
                     <el-table-column :label="t('进度')" width="160"><template #default="{row}"><el-progress :percentage="row.progress||0" /></template></el-table-column>
                     <el-table-column :label="t('状态')" width="100"><template #default="{row}"><el-tag size="small">{{ formatActivityStatus(row.status) }}</el-tag></template></el-table-column>
@@ -2425,19 +2573,19 @@ const App = {
             <div v-if="personalAlerts.length" class="card alert-list">
               <h3>{{ t('截止预警') }}</h3>
               <div v-for="a in personalAlerts" :key="a.task_id" class="alert-item" :class="a.level">
-                <strong>{{ a.task_name }}</strong> — {{ a.message }}
+                <strong>{{ formatDynamicText(a.task_name) }}</strong> — {{ formatDynamicText(a.message) }}
               </div>
             </div>
             <div class="card">
               <h3>{{ t('我的子任务') }}</h3>
               <p class="hint">{{ t('系统按你的能力与偏好分配子任务。请更新完成百分比；逾期或滞后会在上方预警，队友在团队页可见你的进度。') }}</p>
               <el-table v-if="(personal.tasks||[]).length" :data="personal.tasks" stripe>
-                <el-table-column prop="task_name" :label="t('子任务')" min-width="140" />
+                <el-table-column :label="t('子任务')" min-width="140"><template #default="{row}">{{ formatDynamicText(row.task_name) }}</template></el-table-column>
                 <el-table-column :label="t('分配依据')" min-width="200">
-                  <template #default="{row}"><span class="explain-text">{{ row.assign_reason || '—' }}</span></template>
+                  <template #default="{row}"><span class="explain-text">{{ formatDynamicText(row.assign_reason) || '—' }}</span></template>
                 </el-table-column>
                 <el-table-column :label="t('截止')" width="110"><template #default="{row}">{{ formatDeadline(row.deadline) }}</template></el-table-column>
-                <el-table-column :label="t('风险')" width="80"><template #default="{row}"><el-tag v-if="row.risk" :type="riskTagType(row.risk.level)" size="small">{{ row.risk.label }}</el-tag></template></el-table-column>
+                <el-table-column :label="t('风险')" width="80"><template #default="{row}"><el-tag v-if="row.risk" :type="riskTagType(row.risk.level)" size="small">{{ formatDynamicText(row.risk.label) }}</el-tag></template></el-table-column>
                 <el-table-column :label="t('进度')" min-width="140"><template #default="{row}"><el-progress :percentage="row.progress||0" /></template></el-table-column>
                 <el-table-column :label="t('操作')" width="180">
                   <template #default="{row}">
@@ -2453,9 +2601,9 @@ const App = {
               <h3>{{ t('全组任务动态') }}</h3>
               <p class="hint">{{ t('这里展示你所在小组的所有任务，包含老师分配和同学主动创建的任务。') }}</p>
               <el-table v-if="(personal.team_tasks||[]).length" :data="personal.team_tasks" stripe>
-                <el-table-column prop="task_name" :label="t('任务')" min-width="150" />
+                <el-table-column :label="t('任务')" min-width="150"><template #default="{row}">{{ formatDynamicText(row.task_name) }}</template></el-table-column>
                 <el-table-column :label="t('负责人')" width="110"><template #default="{row}">{{ row.assignee_id===user?.id ? t('我') : (t('用户') + row.assignee_id) }}</template></el-table-column>
-                <el-table-column :label="t('说明')" min-width="220"><template #default="{row}"><span class="explain-text">{{ row.assign_reason || row.description || '—' }}</span></template></el-table-column>
+                <el-table-column :label="t('说明')" min-width="220"><template #default="{row}"><span class="explain-text">{{ formatDynamicText(row.assign_reason || row.description) || '—' }}</span></template></el-table-column>
                 <el-table-column :label="t('截止')" width="110"><template #default="{row}">{{ formatDeadline(row.deadline) }}</template></el-table-column>
                 <el-table-column :label="t('进度')" width="150"><template #default="{row}"><el-progress :percentage="row.progress||0" /></template></el-table-column>
               </el-table>
@@ -2470,7 +2618,7 @@ const App = {
               <el-input v-model="postForm.title" :placeholder="t('标题（可选）')" style="margin-bottom:8px" />
               <el-input v-model="postForm.content" type="textarea" :rows="4" maxlength="2000" show-word-limit :placeholder="t('写下你感兴趣的方向、正在做的项目、想寻找的队友...')" />
               <el-select v-model="postForm.tags" multiple filterable :placeholder="t('选择帖子标签')" style="width:100%;margin-top:8px">
-                <el-option v-for="t in [...tagCatalog.knowledge,...tagCatalog.skill,...tagCatalog.collab]" :key="t.id" :label="t.name" :value="t.name" />
+                <el-option v-for="tag in [...tagCatalog.knowledge,...tagCatalog.skill,...tagCatalog.collab]" :key="tag.id" :label="translateProfileText(tag.name)" :value="tag.name" />
               </el-select>
               <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
                 <input type="file" multiple accept="image/*,video/mp4" @change="onPostMedia" />
@@ -2480,7 +2628,7 @@ const App = {
             </div>
             <div v-for="p in communityFeed" :key="p.id" class="card community-card">
               <div style="display:flex;justify-content:space-between;align-items:center">
-                <h3>{{ p.title || '学习动态' }}</h3>
+                <h3>{{ p.title ? formatDynamicText(p.title) : t('学习动态') }}</h3>
                 <span class="hint">{{ p.author }}</span>
               </div>
               <p>{{ p.content }}</p>
@@ -2490,7 +2638,7 @@ const App = {
                   <video v-else controls :src="m.url" style="max-width:260px;border-radius:10px"></video>
                 </template>
               </div>
-              <div style="margin-top:8px"><el-tag v-for="t in p.tags" :key="t.name" style="margin:3px">{{ t.name }}</el-tag></div>
+              <div style="margin-top:8px"><el-tag v-for="tag in p.tags" :key="tag.name" style="margin:3px">{{ translateProfileText(tag.name) }}</el-tag></div>
               <div style="margin-top:12px;display:flex;gap:8px">
                 <el-button size="small" @click="interactPost(p, 'like')">{{ t('点赞') }} {{ p.stats?.likes || 0 }}</el-button>
                 <el-button size="small" @click="interactPost(p, 'favorite')">{{ t('收藏') }} {{ p.stats?.favorites || 0 }}</el-button>
@@ -2545,14 +2693,14 @@ const App = {
               </div>
               <div>
                 <h2>{{ user?.name }}</h2>
-                <p class="profile-headline">{{ user?.headline || '还没有设置个人标题' }}</p>
-                <p>{{ user?.bio || '完善头像和个人介绍，让同学更容易认识你。' }}</p>
+                <p class="profile-headline">{{ user?.headline || t('还没有设置个人标题') }}</p>
+                <p>{{ user?.bio || t('完善头像和个人介绍，让同学更容易认识你。') }}</p>
                 <el-tag>{{ t('学员账号：') }} {{ user?.account }}</el-tag>
-                <el-tag type="success" v-if="user?.availability">{{ user.availability }}</el-tag>
+                <el-tag type="success" v-if="user?.availability">{{ formatDynamicText(user.availability) }}</el-tag>
               </div>
             </div>
             <div class="profile-showcase">
-              <div class="showcase-item"><b>{{ t('研究兴趣') }}</b><span>{{ user?.research_interest || '填写你的研究方向、项目兴趣或想探索的问题' }}</span></div>
+              <div class="showcase-item"><b>{{ t('研究兴趣') }}</b><span>{{ user?.research_interest || t('填写你的研究方向、项目兴趣或想探索的问题') }}</span></div>
               <div class="showcase-item"><b>{{ t('作品链接') }}</b><a v-if="user?.portfolio_url" :href="user.portfolio_url" target="_blank">Portfolio</a><span v-else>{{ t('未填写') }}</span></div>
               <div class="showcase-item"><b>{{ t('代码主页') }}</b><a v-if="user?.github_url" :href="user.github_url" target="_blank">GitHub / Lab</a><span v-else>{{ t('未填写') }}</span></div>
             </div>

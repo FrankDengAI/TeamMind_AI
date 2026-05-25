@@ -13,6 +13,7 @@ from app.config import Config
 from app.middleware.auth import get_request_user_id, admin_required, write_audit
 from app.models import CommunityPost, PostComment, PostInteraction
 from app.services.engines.deepseek_parser import DeepSeekParser
+from app.services.entitlement_service import consume_ai_points, resolve_teacher_id_for_student
 from app.services.passive_tag_pipeline import PassiveTagPipeline
 from app.services.tag_catalog import normalize_active_tags
 
@@ -69,13 +70,16 @@ def create_post():
         return jsonify({"error": "帖子内容至少 10 字"}), 400
     media = _save_media(uid)
     llm_tags = []
-    try:
-        analysis = deepseek.parse_profile(content, tags)
-        llm_tags = (analysis.get("knowledge", {}).get("tags") or []) + (analysis.get("skill", {}).get("tags") or []) + (
-            analysis.get("collaboration", {}).get("tags") or []
-        )
-    except Exception:
-        llm_tags = []
+    teacher_id = resolve_teacher_id_for_student(uid)
+    if teacher_id:
+        try:
+            consume_ai_points(teacher_id, "community.llm")
+            analysis = deepseek.parse_profile(content, tags)
+            llm_tags = (analysis.get("knowledge", {}).get("tags") or []) + (analysis.get("skill", {}).get("tags") or []) + (
+                analysis.get("collaboration", {}).get("tags") or []
+            )
+        except Exception:
+            llm_tags = []
     post = CommunityPost(
         user_id=uid,
         title=(title or "")[:160],

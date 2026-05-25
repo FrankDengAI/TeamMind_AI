@@ -4,8 +4,12 @@ import json
 from flask import Blueprint, jsonify, request
 
 from app import db
-from app.middleware.auth import admin_required, write_audit
-from app.models import BehaviorLog, GroupInfo, Task, TeamActivity, User, UserProfile
+from app.middleware.auth import admin_required, get_request_user_id, write_audit
+from app.middleware.entitlement import paywall_response
+from app.models import AiUsageLog, BehaviorLog, GroupInfo, PaymentOrder, Task, TeamActivity, User, UserProfile, UserSubscription
+from app.services.billing_service import mark_order_paid
+from app.services.entitlement_service import PaywallError, activate_subscription, get_entitlements
+from app.services.task_ai_helpers import enrich_adjust_with_ai, enrich_assignments_with_ai
 from app.services.algorithms.grouping import GroupingAlgorithm
 from app.services.algorithms.task_adjust import TaskAdjustAlgorithm
 from app.services.algorithms.task_assign import TaskAssignAlgorithm
@@ -215,6 +219,18 @@ def ops_assign_tasks():
 
     team_goal = data.get("team_goal") or (activity.task_goal if activity else "")
     assignments = assigner.assign(group_id, members, template_key, data.get("custom_tasks"), team_goal)
+    ai_insight = None
+    try:
+        assignments, ai_insight = enrich_assignments_with_ai(
+            get_request_user_id(),
+            assignments,
+            members,
+            team_goal=team_goal,
+            template_key=template_key,
+            use_ai=bool(data.get("use_ai")),
+        )
+    except PaywallError as exc:
+        return paywall_response(exc)
     created = create_assigned_tasks(group_id, assignments)
     if activity and activity.status == "locked":
         activity.status = "tasking"
@@ -335,7 +351,19 @@ def ops_adjust_tasks():
             d["user_id"] = mid
             members.append(d)
     summary = adjuster.summarize_behavior(logs)
-    result = adjuster.adjust([t.to_dict() for t in tasks], summary, members)
+    task_dicts = [t.to_dict() for t in tasks]
+    result = adjuster.adjust(task_dicts, summary, members)
+    try:
+        result = enrich_adjust_with_ai(
+            get_request_user_id(),
+            result,
+            task_dicts,
+            members,
+            summary,
+            use_ai=bool(data.get("use_ai")),
+        )
+    except PaywallError as exc:
+        return paywall_response(exc)
     for t in tasks:
         for sug in result["suggestions"]:
             if sug.get("task_id") == t.id:
@@ -346,3 +374,80 @@ def ops_adjust_tasks():
     db.session.commit()
     write_audit("admin_adjust_tasks", "group", group_id)
     return jsonify(result)
+
+
+@bp.route("/billing/orders", methods=["GET"])
+@admin_required
+def admin_billing_orders():
+    """订单列表（运营核销）."""
+    status = request.args.get("status")
+    q = PaymentOrder.query.order_by(PaymentOrder.create_time.desc())
+    if status:
+        q = q.filter_by(status=status)
+    rows = q.limit(200).all()
+    users = {u.id: u for u in User.query.filter(User.id.in_([r.user_id for r in rows])).all()} if rows else {}
+    return jsonify(
+        [
+            {
+                **o.to_dict(include_qr=True),
+                "user_name": users.get(o.user_id).name if users.get(o.user_id) else None,
+                "user_account": users.get(o.user_id).account if users.get(o.user_id) else None,
+            }
+            for o in rows
+        ]
+    )
+
+
+@bp.route("/billing/orders/<int:order_id>/fulfill", methods=["POST"])
+@admin_required
+def admin_fulfill_order(order_id):
+    """人工核销订单."""
+    order = PaymentOrder.query.get_or_404(order_id)
+    data = request.get_json(silent=True) or {}
+    try:
+        mark_order_paid(order, remark=data.get("remark") or "admin_fulfill")
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    write_audit("billing_fulfill", "payment_order", order.id)
+    return jsonify({"message": "订单已核销", "order": order.to_dict(), "entitlements": get_entitlements(order.user_id)})
+
+
+@bp.route("/billing/grant", methods=["POST"])
+@admin_required
+def admin_grant_subscription():
+    """赠送套餐或延长订阅."""
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id")
+    plan_code = (data.get("plan_code") or "pro").strip()
+    days = int(data.get("days") or 30)
+    if not user_id:
+        return jsonify({"error": "user_id 必填"}), 400
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "用户不存在"}), 404
+    period = "trial" if plan_code == "trial" else "month"
+    activate_subscription(user_id, plan_code if plan_code != "trial" else "pro", period, days=days)
+    write_audit("billing_grant", "user", user_id, json.dumps(data, ensure_ascii=False))
+    return jsonify({"message": "已赠送权益", "entitlements": get_entitlements(user_id)})
+
+
+@bp.route("/billing/usage", methods=["GET"])
+@admin_required
+def admin_billing_usage():
+    """AI 用量与预估成本."""
+    from sqlalchemy import func
+
+    rows = (
+        db.session.query(AiUsageLog.feature, func.count(AiUsageLog.id), func.sum(AiUsageLog.points_cost))
+        .group_by(AiUsageLog.feature)
+        .all()
+    )
+    total_points = sum(r[2] or 0 for r in rows)
+    est_cost_cny = round(total_points * 0.01, 2)
+    return jsonify(
+        {
+            "by_feature": [{"feature": r[0], "calls": r[1], "points": int(r[2] or 0)} for r in rows],
+            "total_points": int(total_points),
+            "estimated_api_cost_cny": est_cost_cny,
+        }
+    )

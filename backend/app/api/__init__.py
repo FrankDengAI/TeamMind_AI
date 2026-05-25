@@ -3,6 +3,7 @@
 
 def register_blueprints(app):
     from app.api.auth import bp as auth_bp
+    from app.api.access import bp as access_bp
     from app.api.health import bp as health_bp
     from app.api.profile import bp as profile_bp
     from app.api.group import bp as group_bp
@@ -19,8 +20,11 @@ def register_blueprints(app):
     from app.api.classroom import bp as classroom_bp
     from app.api.team_activity import admin_bp as admin_team_activity_bp
     from app.api.team_activity import bp as team_activity_bp
+    from app.api.billing import bp as billing_bp
 
     app.register_blueprint(health_bp)
+    app.register_blueprint(access_bp)
+    app.register_blueprint(billing_bp, url_prefix="/api/billing")
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(profile_bp, url_prefix="/api/profile")
     app.register_blueprint(group_bp, url_prefix="/api/group")

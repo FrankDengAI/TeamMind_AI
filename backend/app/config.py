@@ -89,3 +89,10 @@ class Config:
     MAX_VIDEO_SIZE = 50 * 1024 * 1024
     ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp"}
     ALLOWED_VIDEO_EXT = {".mp4"}
+
+    # 计费与支付（页面扫码 + 人工核销 MVP）
+    BILLING_WECHAT_QR_URL = os.environ.get("BILLING_WECHAT_QR_URL", "")
+    BILLING_ALIPAY_QR_URL = os.environ.get("BILLING_ALIPAY_QR_URL", "")
+    BILLING_MANUAL_CONFIRM = os.environ.get("BILLING_MANUAL_CONFIRM", "1") != "0"
+    BILLING_DEV_AUTO_PAY = os.environ.get("BILLING_DEV_AUTO_PAY", "1") != "0"
+    BILLING_WEBHOOK_SECRET = os.environ.get("BILLING_WEBHOOK_SECRET", "")
