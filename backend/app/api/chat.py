@@ -1,16 +1,18 @@
-"""实时聊天 REST 与 Socket.IO 事件."""
+"""???? REST ? Socket.IO ??."""
 from __future__ import annotations
 
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import get_jwt_identity
+from app.middleware.auth import jwt_required_compat
 from sqlalchemy import or_
 
 from app import db, socketio
 from app.models import ChatConversation, ChatMessage, User
 from app.services.passive_tag_pipeline import PassiveTagPipeline
 from app.middleware.auth import decode_jwt_token, get_request_user_id
+from app.services.class_membership import users_share_active_class
 
 bp = Blueprint("chat", __name__)
 pipeline = PassiveTagPipeline()
@@ -34,7 +36,7 @@ def _group_conversations_for_user(uid: int) -> list[ChatConversation]:
 
 
 @bp.route("/groups/<int:group_id>/conversation", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def group_conversation(group_id):
     from app.models import GroupInfo
 
@@ -43,7 +45,7 @@ def group_conversation(group_id):
     if uid not in g.member_list():
         user = User.query.get(uid)
         if not user or user.role != "admin":
-            return jsonify({"error": "无权访问小组频道"}), 403
+            return jsonify({"error": "????????"}), 403
     conv = ChatConversation.query.filter_by(group_id=group_id).first()
     if not conv:
         conv = ChatConversation(group_id=group_id, last_message_at=datetime.utcnow())
@@ -53,7 +55,7 @@ def group_conversation(group_id):
 
 
 @bp.route("/conversations", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def conversations():
     uid = get_request_user_id()
     direct = ChatConversation.query.filter(
@@ -71,7 +73,7 @@ def conversations():
 
             g = GroupInfo.query.get(conv.group_id)
             item["group"] = {"id": conv.group_id, "group_name": g.group_name if g else ""}
-            item["title"] = g.group_name if g else f"小组 #{conv.group_id}"
+            item["title"] = g.group_name if g else f"?? #{conv.group_id}"
         else:
             other = User.query.get(item.get("other_user_id"))
             item["other_user"] = other.to_dict() if other else None
@@ -88,41 +90,46 @@ def conversations():
 
 
 @bp.route("/conversations", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def create_conversation():
     uid = get_request_user_id()
     data = request.get_json(silent=True) or {}
     target = int(data.get("target_user_id") or 0)
     if not target or target == uid:
-        return jsonify({"error": "target_user_id 无效"}), 400
+        return jsonify({"error": "target_user_id ??"}), 400
+
     if not User.query.get(target):
-        return jsonify({"error": "目标用户不存在"}), 404
+        return jsonify({"error": "???????"}), 404
+    user = User.query.get(uid)
+    if not user or user.role != "admin":
+        if not users_share_active_class(uid, target):
+            return jsonify({"error": "?????????"}), 403
     conv = _get_or_create_conversation(uid, target)
     return jsonify(conv.to_dict(uid))
 
 
 @bp.route("/conversations/<int:conversation_id>/messages", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def messages(conversation_id):
     uid = get_request_user_id()
     conv = ChatConversation.query.get_or_404(conversation_id)
     if uid not in conv.member_ids():
         user = User.query.get(uid)
         if not user or user.role != "admin":
-            return jsonify({"error": "无权访问"}), 403
+            return jsonify({"error": "????"}), 403
     rows = ChatMessage.query.filter_by(conversation_id=conversation_id).order_by(ChatMessage.create_time.asc()).limit(200).all()
     return jsonify([m.to_dict() for m in rows])
 
 
 @bp.route("/conversations/<int:conversation_id>/messages", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def send_message_rest(conversation_id):
     uid = get_request_user_id()
     conv = ChatConversation.query.get_or_404(conversation_id)
     if uid not in conv.member_ids():
         user = User.query.get(uid)
         if not user or user.role != "admin":
-            return jsonify({"error": "无权访问"}), 403
+            return jsonify({"error": "????"}), 403
     data = request.get_json(silent=True) or {}
     try:
         msg = _save_message(conv, uid, data.get("content") or "", data.get("msg_type") or "text")
@@ -132,12 +139,12 @@ def send_message_rest(conversation_id):
 
 
 @bp.route("/conversations/<int:conversation_id>/read", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def mark_read(conversation_id):
     uid = get_request_user_id()
     conv = ChatConversation.query.get_or_404(conversation_id)
     if uid not in conv.member_ids():
-        return jsonify({"error": "无权访问"}), 403
+        return jsonify({"error": "????"}), 403
     ChatMessage.query.filter(
         ChatMessage.conversation_id == conversation_id,
         ChatMessage.sender_id != uid,
@@ -159,9 +166,15 @@ def _get_or_create_conversation(uid: int, target: int) -> ChatConversation:
 
 
 def _save_message(conv: ChatConversation, sender_id: int, content: str, msg_type: str = "text") -> ChatMessage:
+    if conv.group_id is None:
+        other = conv.user2_id if conv.user1_id == sender_id else conv.user1_id
+        sender = User.query.get(sender_id)
+        if not sender or sender.role != "admin":
+            if not users_share_active_class(sender_id, other):
+                raise ValueError("?????????")
     content = (content or "").strip()
     if not content:
-        raise ValueError("消息不能为空")
+        raise ValueError("??????")
     msg = ChatMessage(conversation_id=conv.id, sender_id=sender_id, content=content[:2000], msg_type=msg_type)
     conv.last_message_at = datetime.utcnow()
     db.session.add(msg)
@@ -192,7 +205,15 @@ if socketio is not None:
             conv_id = data.get("conversation_id")
             conv = ChatConversation.query.get(conv_id) if conv_id else _get_or_create_conversation(uid, target)
             if uid not in conv.member_ids():
-                return {"error": "无权访问"}
+                return {"error": "????"}
+            if conv.group_id is None:
+                other = conv.user2_id if conv.user1_id == uid else conv.user1_id
+                user = User.query.get(uid)
+                if not user or user.role != "admin":
+                    if not users_share_active_class(uid, other):
+                        return {"error": "?????????"}
+            if False:
+                return {"error": "????"}
             msg = _save_message(conv, uid, data.get("content") or "", data.get("msg_type") or "text")
             socketio.emit("message", msg.to_dict(), room=f"user:{conv.user1_id}")
             socketio.emit("message", msg.to_dict(), room=f"user:{conv.user2_id}")

@@ -6,6 +6,7 @@ from flask import Blueprint, jsonify, request
 from app.middleware.auth import admin_required, get_request_user_id
 from app.middleware.entitlement import paywall_response
 from app.models import Classroom
+from app.services.teacher_scope import admin_owns_class
 from app.services.class_copilot import ask_class_copilot, get_suggested_questions
 from app.services.entitlement_service import PaywallError, consume_ai_points, get_entitlements
 
@@ -16,7 +17,7 @@ def _teacher_owns_class(class_id: int, uid: int) -> bool:
     cls = Classroom.query.get(class_id)
     if not cls:
         return False
-    return cls.teacher_id == uid or cls.teacher_id is None
+    return admin_owns_class(cls, uid)
 
 
 @bp.route("/class/<int:class_id>/suggestions", methods=["GET"])
@@ -24,7 +25,7 @@ def _teacher_owns_class(class_id: int, uid: int) -> bool:
 def class_suggestions(class_id):
     uid = get_request_user_id()
     cls = Classroom.query.get_or_404(class_id)
-    if cls.teacher_id and cls.teacher_id != uid:
+    if not admin_owns_class(cls, uid):
         return jsonify({"error": "无权访问该班级"}), 403
     return jsonify({"questions": get_suggested_questions(class_id)})
 
@@ -34,7 +35,7 @@ def class_suggestions(class_id):
 def class_ask(class_id):
     uid = get_request_user_id()
     cls = Classroom.query.get_or_404(class_id)
-    if cls.teacher_id and cls.teacher_id != uid:
+    if not admin_owns_class(cls, uid):
         return jsonify({"error": "无权访问该班级"}), 403
 
     data = request.get_json(silent=True) or {}

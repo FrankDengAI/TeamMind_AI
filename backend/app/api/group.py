@@ -1,8 +1,9 @@
-"""分组 API."""
+"""????? API."""
 import json
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import get_jwt_identity
+from app.middleware.auth import jwt_required_compat
 
 from app import db
 from app.middleware.auth import get_request_user_id, admin_required, write_audit
@@ -10,6 +11,7 @@ from app.models import GroupInfo, User, UserProfile
 from app.services.algorithms.grouping import GroupingAlgorithm
 from app.middleware.entitlement import paywall_response
 from app.services.entitlement_service import PaywallError, get_entitlements
+from app.services.class_membership import filter_user_ids, restrict_to_class_members
 from app.services.grouping_templates import list_templates, resolve_template, template_to_group_config
 
 bp = Blueprint("group", __name__)
@@ -17,7 +19,7 @@ algo = GroupingAlgorithm()
 
 
 @bp.route("/templates", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def grouping_templates():
     uid = get_request_user_id()
     ent = get_entitlements(uid)
@@ -28,6 +30,14 @@ def _profile_to_dict(prof: UserProfile) -> dict:
     d = prof.to_dict()
     d["user_id"] = prof.user_id
     return d
+
+
+def _resolve_grouping_user_ids(data: dict) -> list[int]:
+    user_ids = data.get("user_ids") or []
+    class_id = data.get("class_id")
+    if class_id:
+        return restrict_to_class_members(user_ids, int(class_id))
+    return filter_user_ids(user_ids)
 
 
 @bp.route("/create", methods=["POST"])
@@ -43,12 +53,13 @@ def create_groups():
         if tpl.get("tier") == "pro":
             ent = get_entitlements(get_request_user_id())
             if ent.get("plan_code") == "free":
-                return jsonify({"error": "该分组模板需升级专业版", "code": "PAYWALL", "feature": "grouping.template"}), 402
+                return jsonify({"error": "?????????????????????", "code": "PAYWALL", "feature": "grouping.template"}), 402
         config = template_to_group_config(template_id, config)
     mode = config.get("mode", "heterogeneous")
     priority = config.get("priority", "skill")
     constraints = config.get("constraints") or {}
 
+    user_ids = _resolve_grouping_user_ids(data)
     if not user_ids:
         return jsonify({"error": "user_ids 不能为空"}), 400
 
@@ -59,7 +70,7 @@ def create_groups():
             profiles.append(_profile_to_dict(prof))
 
     if len(profiles) < group_size:
-        return jsonify({"error": "有效画像人数不足"}), 400
+        return jsonify({"error": "??????????????????"}), 400
 
     try:
         result = algo.create_groups(
@@ -134,7 +145,7 @@ def _enrich_groups_for_ui(groups: list, profiles: list) -> list:
 @bp.route("/compare", methods=["POST"])
 @admin_required
 def compare_groups():
-    """多方案分组对比（模板驱动，不写入 DB）."""
+    """???????????????????????????????? DB??."""
     from app.services.grouping_templates import GROUPING_TEMPLATES
 
     data = request.get_json(silent=True) or {}
@@ -144,7 +155,7 @@ def compare_groups():
     uid = get_request_user_id()
     ent = get_entitlements(uid)
     if ent.get("plan_code") == "free":
-        return jsonify({"error": "多方案对比需升级专业版", "code": "PAYWALL", "feature": "grouping.compare"}), 402
+        return jsonify({"error": "???????????????????????", "code": "PAYWALL", "feature": "grouping.compare"}), 402
     try:
         from app.services.entitlement_service import check_limit
 
@@ -152,17 +163,18 @@ def compare_groups():
     except PaywallError as exc:
         return paywall_response(exc)
 
+    user_ids = _resolve_grouping_user_ids(data)
     profiles = []
     for u in user_ids:
         prof = UserProfile.query.filter_by(user_id=u).order_by(UserProfile.create_time.desc()).first()
         if prof:
             d = _profile_to_dict(prof)
-            u = User.query.get(u)
-            if u:
-                d["name"] = u.name
+            uobj = User.query.get(u)
+            if uobj:
+                d["name"] = uobj.name
             profiles.append(d)
     if len(profiles) < group_size:
-        return jsonify({"error": "有效画像人数不足"}), 400
+        return jsonify({"error": "????????"}), 400
 
     tier_rank = {"free": 0, "pro": 1, "plus": 2}
     user_rank = tier_rank.get(ent.get("plan_code", "free"), 0)
@@ -216,7 +228,7 @@ def compare_groups():
 @bp.route("/preview", methods=["POST"])
 @admin_required
 def preview_groups():
-    """模拟分组，不写入数据库."""
+    """????????????????????????."""
     data = request.get_json(silent=True) or {}
     user_ids = data.get("user_ids") or []
     group_size = int(data.get("group_size", 4))
@@ -227,12 +239,13 @@ def preview_groups():
         if tpl.get("tier") == "pro":
             ent = get_entitlements(get_request_user_id())
             if ent.get("plan_code") == "free":
-                return jsonify({"error": "该分组模板需升级专业版", "code": "PAYWALL", "feature": "grouping.template"}), 402
+                return jsonify({"error": "?????????????????????", "code": "PAYWALL", "feature": "grouping.template"}), 402
         config = template_to_group_config(template_id, config)
     mode = config.get("mode", "heterogeneous")
     priority = config.get("priority", "skill")
     constraints = config.get("constraints") or {}
 
+    user_ids = _resolve_grouping_user_ids(data)
     if not user_ids:
         return jsonify({"error": "user_ids 不能为空"}), 400
 
@@ -243,7 +256,7 @@ def preview_groups():
             profiles.append(_profile_to_dict(prof))
 
     if len(profiles) < group_size:
-        return jsonify({"error": "有效画像人数不足"}), 400
+        return jsonify({"error": "??????????????????"}), 400
 
     try:
         result = algo.create_groups(
@@ -259,7 +272,7 @@ def preview_groups():
     major_dist = {}
     for g in result["groups"]:
         for m in g.get("members") or []:
-            maj = m.get("major") or "未知"
+            maj = m.get("major") or "??????"
             major_dist[maj] = major_dist.get(maj, 0) + 1
 
     return jsonify(
@@ -275,12 +288,12 @@ def preview_groups():
 
 
 @bp.route("/list", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def list_groups():
     uid = get_request_user_id()
     user = User.query.get(uid)
     if not user:
-        return jsonify({"error": "用户不存在"}), 401
+        return jsonify({"error": "????????????"}), 401
     activity_id = request.args.get("activity_id", type=int)
     q = GroupInfo.query
     if activity_id:
@@ -292,7 +305,7 @@ def list_groups():
 
 
 @bp.route("/<int:group_id>", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def get_group(group_id):
     from app.services.group_config import load_group_config, get_team_role
 
@@ -300,9 +313,9 @@ def get_group(group_id):
     user = User.query.get(uid)
     g = GroupInfo.query.get_or_404(group_id)
     if not user:
-        return jsonify({"error": "用户不存在"}), 401
+        return jsonify({"error": "????????????"}), 401
     if user.role != "admin" and uid not in g.member_list():
-        return jsonify({"error": "无权访问该小组"}), 403
+        return jsonify({"error": "?????????????"}), 403
     cfg = load_group_config(g)
     members = []
     for mid in g.member_list():

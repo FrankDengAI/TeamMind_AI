@@ -122,12 +122,23 @@ const STUDENT_I18N = {
     loginFeatureB: '在团队页查看队友进度，及时沟通协作',
     loginFeatureC: '在个人任务页更新子任务完成率，关注截止预警',
     loginTitle: '学员登录',
-    loginSub: '注册或登录后开始使用',
+    loginSub: '使用账号密码注册或登录',
     login: '登录',
     register: '注册',
     account: '账号',
+    registerAccount: '登录账号',
+    accountPlaceholder: '字母、数字、下划线，至少3位',
+    passwordPlaceholder: '至少8位，含字母与数字',
+    forgotPasswordHint: '忘记密码？登录后在「个人主页」修改，或联系老师/管理员',
+    email: '邮箱',
+    verifyCode: '验证码',
+    sendCode: '发送验证码',
+    forgotPassword: '忘记密码',
+    resetPassword: '重置密码',
+    backToLogin: '返回登录',
     password: '密码',
     name: '姓名',
+    demoSample: '示例',
     adminHint: '老师/管理员请访问',
     adminBackend: '管理后台',
     switchToAdmin: '进入教师端',
@@ -160,12 +171,23 @@ const STUDENT_I18N = {
     loginFeatureB: 'Review teammate progress and communicate in time',
     loginFeatureC: 'Update task progress and watch deadline alerts',
     loginTitle: 'Student Login',
-    loginSub: 'Sign up or log in to get started',
+    loginSub: 'Sign up or log in with your account',
     login: 'Log in',
     register: 'Sign up',
     account: 'Account',
+    registerAccount: 'Username',
+    accountPlaceholder: 'Letters, numbers, underscore; min 3 chars',
+    passwordPlaceholder: 'At least 8 chars with letters and numbers',
+    forgotPasswordHint: 'Forgot password? Change it under Profile after login, or ask your teacher/admin.',
+    email: 'Email',
+    verifyCode: 'Verification code',
+    sendCode: 'Send code',
+    forgotPassword: 'Forgot password',
+    resetPassword: 'Reset password',
+    backToLogin: 'Back to login',
     password: 'Password',
     name: 'Name',
+    demoSample: 'Sample',
     adminHint: 'Teachers/admins should use',
     adminBackend: 'Admin Console',
     switchToAdmin: 'Open Teacher App',
@@ -587,6 +609,12 @@ Object.assign(STUDENT_TEXT_I18N.en, {
   '分享项目经验、兴趣方向、学习资料或组队想法；点赞、收藏、评论会形成你的被动画像标签。': 'Share project experience, interests, resources or teaming ideas; likes, favorites and comments build passive profile tags.',
   '写下你感兴趣的方向、正在做的项目、想寻找的队友...': 'Write interests, current projects, teammates you are looking for...',
   '暂无会话，可在学习社区中给同学发消息': 'No conversations yet. Message classmates from the community.',
+  会话: 'Conversation',
+  小组频道: 'Group Channel',
+  私聊: 'Direct Message',
+  选择文件: 'Choose File',
+  未选择任何文件: 'No file chosen',
+  '已选择 %n% 个文件': '%n% file(s) selected',
   输入消息: 'Type a message',
   '学员账号：': 'Student account:',
   未填写: 'Not set',
@@ -615,6 +643,11 @@ Object.assign(STUDENT_TEXT_I18N.en, {
   未命名活动: 'Untitled Activity',
   请求失败: 'Request failed',
   请填写账号和密码: 'Please enter account and password',
+  请填写姓名和账号: 'Please enter name and account',
+  请完整填写注册信息: 'Please complete all registration fields',
+  '字母、数字、下划线，至少3位': 'Letters, numbers, underscore; min 3 chars',
+  '忘记密码？登录后在「个人主页」修改，或联系老师/管理员': 'Forgot password? Change it under Profile after login, or ask your teacher/admin.',
+  登录账号: 'Username',
   登录成功: 'Signed in successfully',
   '请完整填写姓名、账号和密码': 'Please fill in name, account and password',
   '密码至少 6 位': 'Password must be at least 6 characters',
@@ -1303,18 +1336,25 @@ const App = {
     }
 
     async function doRegister() {
-      if (!regForm.value.name.trim() || !regForm.value.account.trim() || !regForm.value.password) {
-        return ElementPlus.ElMessage.warning(t('请完整填写姓名、账号和密码'))
+      const { name, account, password } = regForm.value
+      if (!name.trim() || !account.trim() || !password) {
+        return ElementPlus.ElMessage.warning(t('请完整填写注册信息'))
       }
-      if (regForm.value.password.length < 6) {
-        return ElementPlus.ElMessage.warning(t('密码至少 6 位'))
+      if (password.length < 8) {
+        return ElementPlus.ElMessage.warning(t('密码至少 8 位，且包含字母与数字'))
       }
       loading.value = true
       try {
-        const { data } = await http.post('/auth/register', regForm.value)
+        const { data } = await http.post('/auth/register', {
+          name: name.trim(),
+          account: account.trim(),
+          password,
+        })
         setAuth(data)
         ElementPlus.ElMessage.success(t('注册成功，请先填写画像'))
         await Promise.all([loadHistory(), loadTagCatalog()])
+      } catch (e) {
+        ElementPlus.ElMessage.error(e?.response?.data?.error || t('注册失败'))
       } finally { loading.value = false }
     }
 
@@ -1337,6 +1377,24 @@ const App = {
       user.value = null
       page.value = 'login'
       ElementPlus.ElMessage.warning(t('登录状态已失效，请重新登录'))
+    }
+
+    async function validateSession() {
+      if (!token.value) return false
+      try {
+        const { data } = await http.get('/auth/me')
+        if (!data || data.role !== 'user' || data.status === 'disabled') {
+          ElementPlus.ElMessage.error(t('请使用学员账号登录'))
+          logout()
+          return false
+        }
+        user.value = data
+        TeamMindRuntime.storage.setItem('tf_user', JSON.stringify(data))
+        return true
+      } catch {
+        logout()
+        return false
+      }
     }
 
     async function loadMe() {
@@ -1509,6 +1567,25 @@ const App = {
       } finally { loading.value = false }
     }
 
+    const resumeInputRef = ref(null)
+    const postMediaInputRef = ref(null)
+
+    function pickResumeFile() {
+      resumeInputRef.value?.click()
+    }
+
+    function pickPostMedia() {
+      postMediaInputRef.value?.click()
+    }
+
+    const postMediaSummary = computed(() => {
+      void language.value
+      const files = postMedia.value || []
+      if (!files.length) return t('未选择任何文件')
+      if (files.length === 1) return files[0].name
+      return t('已选择 %n% 个文件').replace('%n%', String(files.length))
+    })
+
     function onResumeFile(e) {
       resumeFile.value = (e.target.files || [])[0] || null
     }
@@ -1540,6 +1617,7 @@ const App = {
 
     function onPostMedia(e) {
       postMedia.value = Array.from(e.target.files || [])
+      if (e?.target) e.target.value = ''
     }
 
     async function createPost() {
@@ -1954,16 +2032,7 @@ const App = {
       }
       updateDocumentTitle()
       stopRefresh()
-      if (p === 'profile') {
-        loadHistory()
-        loadProfileLlmStatus()
-      }
-      if (p === 'classes') loadStudentClasses()
-      if (p === 'team') { loadActivities().then(() => loadGroups()).then(() => { loadTeamDashboard(); startRefresh() }) }
-      if (p === 'tasks') loadPersonal()
-      if (p === 'community') loadFeed()
-      if (p === 'messages') loadConversations()
-      if (p === 'account') loadMe()
+      loadStudentPageData(p)
     }
 
     function setLanguage(lang) {
@@ -1989,27 +2058,48 @@ const App = {
       if (PAGE_KEYS.includes(key)) go(key, false)
     }
 
+    function loadStudentPageData(p) {
+      if (p === 'profile') {
+        Promise.all([loadHistory(), loadTagCatalog(), loadProfileLlmStatus()])
+        return
+      }
+      if (p === 'classes') {
+        loadStudentClasses()
+        return
+      }
+      if (p === 'team') {
+        loadActivities().then(() => loadGroups()).then(() => {
+          loadTeamDashboard()
+          startRefresh()
+        })
+        return
+      }
+      if (p === 'tasks') loadPersonal()
+      if (p === 'community') loadFeed()
+      if (p === 'messages') loadConversations()
+      if (p === 'account') loadMe()
+    }
+
     onMounted(() => {
       setLanguage(language.value)
       globalThis.teammindApplyBootInline?.()
       globalThis.TeamMindI18n?.applyBootScreenI18n?.('student')
-      globalThis.TeamMindI18n?.hideBootScreen?.()
       window.addEventListener('teammind-auth-expired', handleAuthExpired)
       clearStaleAdminSession()
-      if (isLoggedIn.value) {
-        const key = window.location.hash.replace('#', '')
-        page.value = PAGE_KEYS.includes(key) ? key : 'profile'
-        window.addEventListener('hashchange', onHashChange)
-        loadHistory()
-        loadTagCatalog()
-        loadStudentClasses()
-        loadActivities()
-        if (page.value === 'classes') loadStudentClasses()
-        if (page.value === 'team') go('team', false)
-        if (page.value === 'tasks') loadPersonal()
-        if (page.value === 'community') loadFeed()
-        if (page.value === 'messages') loadConversations()
-        if (page.value === 'account') loadMe()
+      if (token.value) {
+        validateSession().then((ok) => {
+          if (!ok) {
+            globalThis.TeamMindI18n?.hideBootScreen?.()
+            return
+          }
+          const key = window.location.hash.replace('#', '')
+          page.value = PAGE_KEYS.includes(key) ? key : 'profile'
+          window.addEventListener('hashchange', onHashChange)
+          loadStudentPageData(page.value)
+          globalThis.TeamMindI18n?.hideBootScreen?.()
+        })
+      } else {
+        globalThis.TeamMindI18n?.hideBootScreen?.()
       }
     })
 
@@ -2026,7 +2116,7 @@ const App = {
       selectedStudentClassId, selectedStudentClass, activeClassMemberships, classActivities, classActivityForm,
       activities, selectedActivityId, currentActivity, myParticipant, myConfirmation, isConfirmationStage, confirmationSummary,
       activityTeams, teamForm, joinMessage, myRoom, confirmationForm, candidateMembers,
-      tagCatalog, displayTagCatalog, activeTags, customTag, profileTab, resumeFile, calculating, calculateProgress, calculateText,
+      tagCatalog, displayTagCatalog, activeTags, customTag, profileTab, resumeFile, resumeInputRef, postMediaInputRef, pickResumeFile, pickPostMedia, postMediaSummary, calculating, calculateProgress, calculateText,
       communityFeed, postForm, postMedia, commentInputs, expandedComments,
       conversations, messages, chatTargetId, chatConversationId, chatInput,
       currentNav, personalAlerts, taskViewMode, kanbanTasks, myGroup, myTeamRole, teammates,
@@ -2072,16 +2162,17 @@ const App = {
           <el-tabs v-model="tab" stretch>
             <el-tab-pane :label="t('login')" name="login">
               <el-form label-position="top">
-                <el-form-item :label="t('account')"><el-input v-model="loginForm.account" size="large" /></el-form-item>
-                <el-form-item :label="t('password')"><el-input v-model="loginForm.password" type="password" show-password size="large" @keyup.enter="doLogin" /></el-form-item>
+                <el-form-item :label="t('account')"><el-input v-model="loginForm.account" size="large" :placeholder="t('accountPlaceholder')" /></el-form-item>
+                <el-form-item :label="t('password')"><el-input v-model="loginForm.password" type="password" show-password size="large" :placeholder="t('passwordPlaceholder')" @keyup.enter="doLogin" /></el-form-item>
                 <el-button type="primary" :loading="loading" @click="doLogin" size="large" style="width:100%">{{ t('login') }}</el-button>
+                <p class="hint" style="margin-top:12px;text-align:center;font-size:13px">{{ t('forgotPasswordHint') }}</p>
               </el-form>
             </el-tab-pane>
             <el-tab-pane :label="t('register')" name="register">
               <el-form label-position="top">
                 <el-form-item :label="t('name')"><el-input v-model="regForm.name" size="large" /></el-form-item>
-                <el-form-item :label="t('account')"><el-input v-model="regForm.account" size="large" /></el-form-item>
-                <el-form-item :label="t('password')"><el-input v-model="regForm.password" type="password" show-password size="large" /></el-form-item>
+                <el-form-item :label="t('registerAccount')"><el-input v-model="regForm.account" size="large" :placeholder="t('accountPlaceholder')" /></el-form-item>
+                <el-form-item :label="t('password')"><el-input v-model="regForm.password" type="password" show-password size="large" :placeholder="t('passwordPlaceholder')" /></el-form-item>
                 <el-button type="primary" :loading="loading" @click="doRegister" size="large" style="width:100%">{{ t('register') }}</el-button>
               </el-form>
             </el-tab-pane>
@@ -2355,7 +2446,8 @@ const App = {
                       <strong>{{ resumeFile ? (t('已选择：') + resumeFile.name) : t('选择简历文件') }}</strong>
                       <p>{{ t('支持 PDF、DOC、DOCX；若解析失败，可回到自由描述手动补充。') }}</p>
                     </div>
-                    <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" @change="onResumeFile" />
+                    <input ref="resumeInputRef" class="hidden-file-input" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" @change="onResumeFile" />
+                    <el-button @click="pickResumeFile">{{ t('选择文件') }}</el-button>
                     <el-button type="primary" plain :disabled="!resumeFile" :loading="loading" @click="parseResume">{{ t('解析简历并生成画像') }}</el-button>
                   </div>
                 </el-tab-pane>
@@ -2714,8 +2806,10 @@ const App = {
               <el-select v-model="postForm.tags" multiple filterable :placeholder="t('选择帖子标签')" style="width:100%;margin-top:8px">
                 <el-option v-for="tag in [...tagCatalog.knowledge,...tagCatalog.skill,...tagCatalog.collab]" :key="tag.id" :label="translateProfileText(tag.name)" :value="tag.name" />
               </el-select>
-              <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
-                <input type="file" multiple accept="image/*,video/mp4" @change="onPostMedia" />
+              <div class="file-picker-row" style="margin-top:10px">
+                <input ref="postMediaInputRef" class="hidden-file-input" type="file" multiple accept="image/*,video/mp4" @change="onPostMedia" />
+                <el-button size="small" @click="pickPostMedia">{{ t('选择文件') }}</el-button>
+                <span class="hint file-picker-hint">{{ postMediaSummary }}</span>
                 <el-switch v-model="postForm.is_anonymous" :active-text="t('匿名发布')" />
                 <el-button type="primary" :loading="loading" @click="createPost">{{ t('发布') }}</el-button>
               </div>
@@ -2723,7 +2817,7 @@ const App = {
             <div v-for="p in communityFeed" :key="p.id" class="card community-card">
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <h3>{{ p.title ? formatDynamicText(p.title) : t('学习动态') }}</h3>
-                <span class="hint">{{ p.author }}</span>
+                <span class="hint">{{ p.author }}<el-tag v-if="p.author_is_demo" size="small" type="info" style="margin-left:6px">{{ t('demoSample') }}</el-tag></span>
               </div>
               <p>{{ p.content }}</p>
               <div v-if="p.media?.length" style="display:flex;gap:8px;flex-wrap:wrap">

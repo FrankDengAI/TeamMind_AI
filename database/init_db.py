@@ -84,7 +84,14 @@ def main():
         db.create_all()
         users = []
         for name, account, pwd, role in SEED_USERS:
-            u = User(name=name, account=account, password_hash=hash_pw(pwd), role=role, bio="课程教师/管理员")
+            u = User(
+                name=name,
+                account=account,
+                password_hash=hash_pw(pwd),
+                role=role,
+                bio="课程教师/管理员",
+                is_demo=True,
+            )
             db.session.add(u)
             users.append(u)
 
@@ -95,6 +102,7 @@ def main():
                 account=item["account"],
                 password_hash=hash_pw("123456"),
                 role="user",
+                is_demo=True,
                 bio=item["bio"],
                 headline=item.get("headline") or f"{item['major']} · 偏好{item['role']}",
                 research_interest=item.get("research_interest") or " / ".join(item.get("industry", [])[:2]),

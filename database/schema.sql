@@ -13,10 +13,27 @@ CREATE TABLE IF NOT EXISTS user (
     research_interest VARCHAR(240),
     availability VARCHAR(120),
     display_theme VARCHAR(32),
+    email VARCHAR(128) UNIQUE,
+    email_verified_at DATETIME,
+    is_demo BOOLEAN NOT NULL DEFAULT 0,
+    status VARCHAR(16) NOT NULL DEFAULT 'active',
+    last_login_at DATETIME,
     create_time DATETIME,
     update_time DATETIME
 );
 CREATE INDEX IF NOT EXISTS ix_user_account ON user(account);
+CREATE INDEX IF NOT EXISTS ix_user_email ON user(email);
+
+CREATE TABLE IF NOT EXISTS auth_token (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email VARCHAR(128) NOT NULL,
+    purpose VARCHAR(32) NOT NULL,
+    code_hash VARCHAR(128) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME,
+    create_time DATETIME
+);
+CREATE INDEX IF NOT EXISTS ix_auth_token_email ON auth_token(email);
 
 CREATE TABLE IF NOT EXISTS user_profile (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

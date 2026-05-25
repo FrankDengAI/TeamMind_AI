@@ -2,7 +2,8 @@
 import json
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import get_jwt_identity
+from app.middleware.auth import jwt_required_compat
 
 from app import db
 from app.middleware.auth import get_request_user_id, admin_required, write_audit
@@ -78,7 +79,7 @@ def assign_tasks():
 
 
 @bp.route("/list", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def list_tasks():
     uid = get_request_user_id()
     group_id = request.args.get("group_id", type=int)
@@ -97,7 +98,7 @@ def list_tasks():
 
 
 @bp.route("/create", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def create_task():
     """学生或教师创建一条小组任务，支持学生主动认领自己想做的工作."""
     uid = get_request_user_id()
@@ -176,7 +177,7 @@ def create_task():
 
 
 @bp.route("/<int:task_id>/progress", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def update_progress(task_id):
     uid = get_request_user_id()
     task = Task.query.get_or_404(task_id)
@@ -214,7 +215,7 @@ def update_progress(task_id):
 
 
 @bp.route("/<int:task_id>/feedback", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def submit_task_feedback(task_id):
     """学生提交任务负载/适配反馈，供一周后调优和教师督促使用."""
     uid = get_request_user_id()
@@ -308,6 +309,6 @@ def confirm_adjust(task_id):
 
 
 @bp.route("/templates", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def list_templates():
     return jsonify(assigner.templates)

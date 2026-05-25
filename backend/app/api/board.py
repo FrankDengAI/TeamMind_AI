@@ -1,6 +1,7 @@
-"""协作看板同步 API."""
+"""?????? API."""
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import get_jwt_identity
+from app.middleware.auth import jwt_required_compat
 
 from app.models import BehaviorLog, GroupInfo, Task, TeamConfirmation, TeamReport, User, UserProfile
 from app.services.analytics_service import assess_task_risk, build_group_dashboard
@@ -29,11 +30,26 @@ def _build_members_board(group: GroupInfo) -> list:
     tasks = Task.query.filter_by(group_id=group.id).all()
     task_dicts = [t.to_dict() for t in tasks]
     cfg = load_group_config(group)
+    mids = [int(x) for x in group.member_list()]
+    users_map = {u.id: u for u in User.query.filter(User.id.in_(mids)).all()} if mids else {}
+    profiles_map = {}
+    if mids:
+        for prof in UserProfile.query.filter(UserProfile.user_id.in_(mids)).order_by(
+            UserProfile.user_id.asc(), UserProfile.create_time.desc()
+        ).all():
+            if prof.user_id not in profiles_map:
+                profiles_map[prof.user_id] = prof
+    logs_by_user: dict[int, list] = {mid: [] for mid in mids}
+    if mids:
+        for log in BehaviorLog.query.filter(
+            BehaviorLog.group_id == group.id, BehaviorLog.user_id.in_(mids)
+        ).all():
+            logs_by_user.setdefault(log.user_id, []).append(log)
     members = []
-    for mid in group.member_list():
-        u = User.query.get(mid)
-        prof = UserProfile.query.filter_by(user_id=mid).order_by(UserProfile.create_time.desc()).first()
-        logs = BehaviorLog.query.filter_by(user_id=mid, group_id=group.id).all()
+    for mid in mids:
+        u = users_map.get(mid)
+        prof = profiles_map.get(mid)
+        logs = logs_by_user.get(mid, [])
         members.append(
             {
                 "user": u.to_dict() if u else None,
@@ -47,18 +63,18 @@ def _build_members_board(group: GroupInfo) -> list:
 
 
 @bp.route("/sync", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def sync_board():
     uid = get_request_user_id()
     group_id = request.args.get("group_id", type=int)
     user = User.query.get(uid)
     if not user:
-        return jsonify({"error": "用户不存在"}), 401
+        return jsonify({"error": "?????"}), 401
 
     if group_id:
         group = GroupInfo.query.get_or_404(group_id)
         if user.role != "admin" and uid not in group.member_list():
-            return jsonify({"error": "无权访问该团队"}), 403
+            return jsonify({"error": "???????"}), 403
         groups = [group]
     else:
         groups = GroupInfo.query.all()
@@ -89,16 +105,16 @@ def sync_board():
 
 
 @bp.route("/team/<int:group_id>/dashboard", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def team_dashboard(group_id):
-    """团队项目看板：进度、积极性、截止预警."""
+    """??????????????????."""
     uid = get_request_user_id()
     user = User.query.get(uid)
     if not user:
-        return jsonify({"error": "用户不存在"}), 401
+        return jsonify({"error": "?????"}), 401
     group = GroupInfo.query.get_or_404(group_id)
     if user.role != "admin" and uid not in group.member_list():
-        return jsonify({"error": "无权访问该团队"}), 403
+        return jsonify({"error": "???????"}), 403
 
     members, task_dicts = _build_members_board(group)
     logs = BehaviorLog.query.filter_by(group_id=group_id).all()
@@ -110,7 +126,7 @@ def team_dashboard(group_id):
 
 
 @bp.route("/personal", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def personal_stats():
     uid = get_request_user_id()
     tasks = Task.query.filter_by(assignee_id=uid).all()

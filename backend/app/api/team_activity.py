@@ -1,11 +1,12 @@
-"""组队活动 API：老师发起活动，学生参与或自由组队."""
+"""???? API?????????????????."""
 from __future__ import annotations
 
 import json
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import get_jwt_identity
+from app.middleware.auth import jwt_required_compat
 
 from app import db
 from app.middleware.auth import get_request_user_id, admin_required, write_audit
@@ -148,11 +149,11 @@ def _participant_for(activity_id: int, user_id: int):
 
 def _free_team_edit_error(activity: TeamActivity, user_id: int):
     if activity.mode != "free_team":
-        return jsonify({"error": "当前活动不是自由组队模式"}), 400
+        return jsonify({"error": "????????????"}), 400
     if activity.status not in FREE_TEAM_EDIT_STATUSES:
-        return jsonify({"error": "当前活动已锁定，不能继续调整自由队伍"}), 400
+        return jsonify({"error": "??????????????????"}), 400
     if not _participant_for(activity.id, user_id):
-        return jsonify({"error": "请先参与该组队活动"}), 400
+        return jsonify({"error": "?????????"}), 400
     return None
 
 
@@ -235,13 +236,13 @@ def admin_team_activities():
     data = request.get_json(silent=True) or {}
     title = (data.get("title") or "").strip()
     if not title:
-        return jsonify({"error": "活动标题不能为空"}), 400
+        return jsonify({"error": "????????"}), 400
     class_id = data.get("class_id")
     if not class_id:
-        return jsonify({"error": "创建组队活动必须选择班级范围"}), 400
+        return jsonify({"error": "??????????????"}), 400
     classroom = Classroom.query.get(class_id)
     if not classroom:
-        return jsonify({"error": "班级不存在"}), 404
+        return jsonify({"error": "?????"}), 404
     try:
         active_count = (
             TeamActivity.query.filter(
@@ -292,9 +293,9 @@ def admin_team_activity_detail(activity_id):
         if "class_id" in data:
             class_id = data.get("class_id")
             if not class_id:
-                return jsonify({"error": "组队活动必须归属于一个班级"}), 400
+                return jsonify({"error": "?????????????"}), 400
             if not Classroom.query.get(class_id):
-                return jsonify({"error": "班级不存在"}), 404
+                return jsonify({"error": "?????"}), 404
             activity.class_id = class_id
         db.session.commit()
         write_audit("team_activity_update", "team_activity", activity.id)
@@ -318,7 +319,7 @@ def auto_group(activity_id):
     if activity.class_id:
         member_ids = _class_member_ids(activity.class_id)
         if len(member_ids) < 2:
-            return jsonify({"error": "班级有效成员不足，无法自动分组"}), 400
+            return jsonify({"error": "???????????????"}), 400
         for mid in member_ids:
             _ensure_activity_participant(activity, mid)
         db.session.flush()
@@ -334,7 +335,7 @@ def auto_group(activity_id):
         if prof:
             profiles.append(prof)
     if len(profiles) < min(activity.group_size, 2):
-        return jsonify({"error": "参与人数不足，无法自动分组"}), 400
+        return jsonify({"error": "?????????????"}), 400
 
     TeamConfirmation.query.filter_by(activity_id=activity.id).delete()
     GroupInfo.query.filter_by(activity_id=activity.id).delete()
@@ -366,7 +367,7 @@ def auto_group(activity_id):
         if tpl.get("tier") == "pro" and tid:
             ent = get_entitlements(tid)
             if ent.get("plan_code") == "free":
-                return jsonify({"error": "该分组模板需升级专业版", "code": "PAYWALL", "feature": "grouping.template"}), 402
+                return jsonify({"error": "???????????", "code": "PAYWALL", "feature": "grouping.template"}), 402
         group_mode = cfg.get("mode", group_mode)
     task_requirements = {
         "goal": activity.task_goal,
@@ -450,11 +451,11 @@ def auto_group(activity_id):
 @admin_bp.route("/team-activities/<int:activity_id>/refresh-insight", methods=["POST"])
 @admin_required
 def refresh_activity_insight(activity_id):
-    """重新生成活动级 AI 复盘（扣 activity.insight 点数）."""
+    """??????? AI ???? activity.insight ???."""
     activity = TeamActivity.query.get_or_404(activity_id)
     groups = GroupInfo.query.filter_by(activity_id=activity.id).all()
     if not groups:
-        return jsonify({"error": "暂无可分析的小组"}), 400
+        return jsonify({"error": "????????"}), 400
     use_llm = _activity_llm_enabled(activity)
     tid = _teacher_id_for_activity(activity)
     preview_mode = False
@@ -482,11 +483,11 @@ def refresh_activity_insight(activity_id):
 @admin_bp.route("/team-activities/<int:activity_id>/groups/<int:group_id>/refresh-ai", methods=["POST"])
 @admin_required
 def refresh_group_ai(activity_id, group_id):
-    """重新生成单组 AI 分析（扣 group.insight 点数）."""
+    """?????? AI ???? group.insight ???."""
     activity = TeamActivity.query.get_or_404(activity_id)
     group = GroupInfo.query.get_or_404(group_id)
     if group.activity_id != activity.id:
-        return jsonify({"error": "小组不属于该活动"}), 400
+        return jsonify({"error": "????????"}), 400
     tid = _teacher_id_for_activity(activity)
     use_llm = _activity_llm_enabled(activity)
     if use_llm and tid:
@@ -528,7 +529,7 @@ def refresh_group_ai(activity_id, group_id):
 def publish_groups(activity_id):
     activity = TeamActivity.query.get_or_404(activity_id)
     if not GroupInfo.query.filter_by(activity_id=activity.id).count():
-        return jsonify({"error": "暂无可发布的小组"}), 400
+        return jsonify({"error": "????????"}), 400
     activity.status = "locked"
     db.session.commit()
     write_audit("team_activity_publish_groups", "team_activity", activity.id)
@@ -538,23 +539,23 @@ def publish_groups(activity_id):
 @admin_bp.route("/team-activities/<int:activity_id>/lock-groups", methods=["POST"])
 @admin_required
 def lock_groups(activity_id):
-    """确认期结束后锁定候选小组为正式团队."""
+    """?????????????????."""
     return publish_groups(activity_id)
 
 
 @admin_bp.route("/team-activities/<int:activity_id>/confirmations/<int:confirmation_id>/resolve", methods=["POST"])
 @admin_required
 def resolve_confirmation(activity_id, confirmation_id):
-    """处理学生的角色/任务微调申请."""
+    """???????/??????."""
     admin_uid = get_request_user_id()
     activity = TeamActivity.query.get_or_404(activity_id)
     conf = TeamConfirmation.query.get_or_404(confirmation_id)
     if conf.activity_id != activity.id:
-        return jsonify({"error": "确认记录不属于该活动"}), 400
+        return jsonify({"error": "??????????"}), 400
     data = request.get_json(silent=True) or {}
     action = data.get("status") or data.get("action") or "resolved"
     if action not in {"resolved", "rejected", "accepted"}:
-        return jsonify({"error": "处理状态不支持"}), 400
+        return jsonify({"error": "???????"}), 400
     conf.status = "accepted" if action == "accepted" else action
     if action in {"resolved", "accepted"}:
         conf.accept_team = True
@@ -574,7 +575,7 @@ def resolve_confirmation(activity_id, confirmation_id):
                 if int(item.get("user_id", -1)) == conf.user_id:
                     item["role"] = new_role
                     item["source"] = "teacher_adjust"
-                    item["reason"] = conf.handled_note or "教师根据预沟通反馈调整"
+                    item["reason"] = conf.handled_note or "???????????"
                     item["assigned_at"] = datetime.utcnow().isoformat()
                     found = True
                     break
@@ -584,7 +585,7 @@ def resolve_confirmation(activity_id, confirmation_id):
                         "user_id": conf.user_id,
                         "role": new_role,
                         "source": "teacher_adjust",
-                        "reason": conf.handled_note or "教师根据预沟通反馈调整",
+                        "reason": conf.handled_note or "???????????",
                         "assigned_at": datetime.utcnow().isoformat(),
                     }
                 )
@@ -600,7 +601,7 @@ def lock_free_teams(activity_id):
     activity = TeamActivity.query.get_or_404(activity_id)
     rooms = TeamRoom.query.filter_by(activity_id=activity.id).all()
     if not rooms:
-        return jsonify({"error": "暂无学生队伍可锁定"}), 400
+        return jsonify({"error": "?????????"}), 400
     GroupInfo.query.filter_by(activity_id=activity.id).delete()
     saved = []
     for idx, room in enumerate(rooms, start=1):
@@ -612,13 +613,13 @@ def lock_free_teams(activity_id):
         avg = lambda dim: sum(float(p.get(f"{dim}_final") or p.get(f"{dim}_score") or 0) for p in profiles) / max(len(profiles), 1)
         group = GroupInfo(
             activity_id=activity.id,
-            group_name=room.name or f"自由队伍{idx}",
+            group_name=room.name or f"????{idx}",
             member_ids=json.dumps(mids),
             avg_knowledge=round(avg("knowledge"), 2),
             avg_skill=round(avg("skill"), 2),
             avg_collab=round(avg("collab"), 2),
             balance_score=8,
-            config=json.dumps({"mode": "free_team", "complement_note": "学生自由组队，老师已锁定为正式队伍"}, ensure_ascii=False),
+            config=json.dumps({"mode": "free_team", "complement_note": "?????????????????"}, ensure_ascii=False),
         )
         db.session.add(group)
         db.session.flush()
@@ -633,23 +634,40 @@ def lock_free_teams(activity_id):
 
 
 @bp.route("/active", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def active_activities():
     uid = get_request_user_id()
-    activities = TeamActivity.query.filter(TeamActivity.status.in_(["collecting", "grouping", "preview", "confirming", "published", "locked", "tasking", "adjusting"])).order_by(TeamActivity.create_time.desc()).all()
-    my_class_ids = {
+    my_class_ids = [
         row.class_id
         for row in ClassMembership.query.filter_by(user_id=uid, status="active").all()
-    }
+        if row.class_id
+    ]
+    if not my_class_ids:
+        return jsonify([])
+    statuses = ["collecting", "grouping", "preview", "confirming", "published", "locked", "tasking", "adjusting"]
+    activities = (
+        TeamActivity.query.filter(
+            TeamActivity.status.in_(statuses),
+            TeamActivity.class_id.in_(my_class_ids),
+        )
+        .order_by(TeamActivity.create_time.desc())
+        .all()
+    )
+    activity_ids = [a.id for a in activities]
+    participants_map = {}
+    if activity_ids:
+        for p in TeamActivityParticipant.query.filter(
+            TeamActivityParticipant.activity_id.in_(activity_ids),
+            TeamActivityParticipant.user_id == uid,
+        ).all():
+            participants_map[p.activity_id] = p
     out = []
     for a in activities:
-        if a.class_id and a.class_id not in my_class_ids:
-            continue
-        d = _activity_to_dict(a)
-        participant = _participant_for(a.id, uid)
+        d = _activity_to_dict(a, include_classroom=False)
+        participant = participants_map.get(a.id)
         d["my_participant"] = participant.to_dict() if participant else None
         my_group = _my_group(a.id, uid)
-        d["my_group"] = _group_to_dict(my_group, include_confirmations=True) if my_group else None
+        d["my_group"] = _group_to_dict(my_group, include_confirmations=False) if my_group else None
         conf = _confirmation_for(a.id, uid)
         d["my_confirmation"] = conf.to_dict() if conf else None
         out.append(d)
@@ -657,14 +675,14 @@ def active_activities():
 
 
 @bp.route("/<int:activity_id>/join", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def join_activity(activity_id):
     uid = get_request_user_id()
     activity = TeamActivity.query.get_or_404(activity_id)
     if activity.status not in {"collecting", "grouping", "confirming"}:
-        return jsonify({"error": "当前活动已停止收集成员"}), 400
+        return jsonify({"error": "???????????"}), 400
     if activity.class_id and uid not in _class_member_ids(activity.class_id):
-        return jsonify({"error": "你不属于该活动绑定班级，无法参与"}), 403
+        return jsonify({"error": "????????????????"}), 403
     data = request.get_json(silent=True) or {}
     participant = _participant_for(activity.id, uid)
     prof = _latest_profile(uid)
@@ -685,20 +703,20 @@ def join_activity(activity_id):
 
 
 @bp.route("/<int:activity_id>/tags", methods=["PUT"])
-@jwt_required()
+@jwt_required_compat
 def update_activity_tags(activity_id):
     uid = get_request_user_id()
     data = request.get_json(silent=True) or {}
     participant = _participant_for(activity_id, uid)
     if not participant:
-        return jsonify({"error": "请先参与该组队活动"}), 400
+        return jsonify({"error": "?????????"}), 400
     participant.active_tags_json = json.dumps(normalize_active_tags(data.get("active_tags") or []), ensure_ascii=False)
     db.session.commit()
     return jsonify(participant.to_dict())
 
 
 @bp.route("/<int:activity_id>/my-team", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def my_activity_team(activity_id):
     uid = get_request_user_id()
     group = _my_group(activity_id, uid)
@@ -708,16 +726,16 @@ def my_activity_team(activity_id):
 
 
 @bp.route("/<int:activity_id>/confirm", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def confirm_candidate_team(activity_id):
-    """学生在预沟通期确认候选团队/角色，或提交微调诉求."""
+    """?????????????/??????????."""
     uid = get_request_user_id()
     activity = TeamActivity.query.get_or_404(activity_id)
     if activity.status not in {"preview", "confirming", "grouping"}:
-        return jsonify({"error": "当前活动不在预沟通确认期"}), 400
+        return jsonify({"error": "????????????"}), 400
     group = _my_group(activity_id, uid)
     if not group:
-        return jsonify({"error": "暂无你的候选小组"}), 404
+        return jsonify({"error": "????????"}), 404
 
     data = request.get_json(silent=True) or {}
     accept_team = bool(data.get("accept_team", True))
@@ -733,7 +751,7 @@ def confirm_candidate_team(activity_id):
     conf.preferred_role = (data.get("preferred_role") or conf.preferred_role or "").strip()
     prefs = data.get("task_preferences") or []
     if isinstance(prefs, str):
-        prefs = [p.strip() for p in prefs.split("、") if p.strip()]
+        prefs = [p.strip() for p in prefs.split("?") if p.strip()]
     conf.task_preferences_json = json.dumps(prefs, ensure_ascii=False)
     conf.reason = (data.get("reason") or "").strip()
     conf.message = (data.get("message") or "").strip()
@@ -743,7 +761,7 @@ def confirm_candidate_team(activity_id):
 
 
 @bp.route("/<int:activity_id>/confirmations", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def my_confirmations(activity_id):
     uid = get_request_user_id()
     group = _my_group(activity_id, uid)
@@ -755,7 +773,7 @@ def my_confirmations(activity_id):
 
 
 @bp.route("/<int:activity_id>/teams", methods=["GET", "POST"])
-@jwt_required()
+@jwt_required_compat
 def activity_teams(activity_id):
     uid = get_request_user_id()
     activity = TeamActivity.query.get_or_404(activity_id)
@@ -766,9 +784,9 @@ def activity_teams(activity_id):
     if edit_error:
         return edit_error
     data = request.get_json(silent=True) or {}
-    name = (data.get("name") or "").strip() or "我的队伍"
+    name = (data.get("name") or "").strip() or "????"
     if _room_for_user(activity.id, uid):
-        return jsonify({"error": "你已在一个队伍中"}), 400
+        return jsonify({"error": "????????"}), 400
     room = TeamRoom(
         activity_id=activity.id,
         name=name,
@@ -783,7 +801,7 @@ def activity_teams(activity_id):
 
 
 @bp.route("/<int:activity_id>/teams/<int:team_id>/join-request", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def request_join_team(activity_id, team_id):
     uid = get_request_user_id()
     activity = TeamActivity.query.get_or_404(activity_id)
@@ -792,11 +810,11 @@ def request_join_team(activity_id, team_id):
         return edit_error
     room = TeamRoom.query.get_or_404(team_id)
     if room.activity_id != activity_id:
-        return jsonify({"error": "队伍不属于该活动"}), 400
+        return jsonify({"error": "????????"}), 400
     if uid in room.member_ids():
-        return jsonify({"error": "你已在该队伍中"}), 400
+        return jsonify({"error": "???????"}), 400
     if _room_for_user(activity_id, uid):
-        return jsonify({"error": "你已在其他队伍中"}), 400
+        return jsonify({"error": "????????"}), 400
     req = TeamJoinRequest.query.filter_by(activity_id=activity_id, team_id=team_id, user_id=uid, status="pending").first()
     if not req:
         data = request.get_json(silent=True) or {}
@@ -807,7 +825,7 @@ def request_join_team(activity_id, team_id):
 
 
 @bp.route("/<int:activity_id>/requests/<int:request_id>/<action>", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def handle_join_request(activity_id, request_id, action):
     uid = get_request_user_id()
     activity = TeamActivity.query.get_or_404(activity_id)
@@ -817,9 +835,9 @@ def handle_join_request(activity_id, request_id, action):
     req = TeamJoinRequest.query.get_or_404(request_id)
     room = TeamRoom.query.get_or_404(req.team_id)
     if room.activity_id != activity_id or room.leader_id != uid:
-        return jsonify({"error": "无权处理该申请"}), 403
+        return jsonify({"error": "???????"}), 403
     if action not in {"approve", "reject"}:
-        return jsonify({"error": "操作不支持"}), 400
+        return jsonify({"error": "?????"}), 400
     if action == "approve":
         mids = room.member_ids()
         if req.user_id not in mids:
@@ -833,7 +851,7 @@ def handle_join_request(activity_id, request_id, action):
 
 
 @bp.route("/<int:activity_id>/teams/<int:team_id>/leave", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def leave_team(activity_id, team_id):
     uid = get_request_user_id()
     activity = TeamActivity.query.get_or_404(activity_id)
@@ -842,7 +860,7 @@ def leave_team(activity_id, team_id):
         return edit_error
     room = TeamRoom.query.get_or_404(team_id)
     if room.activity_id != activity_id:
-        return jsonify({"error": "队伍不属于该活动"}), 400
+        return jsonify({"error": "????????"}), 400
     mids = [mid for mid in room.member_ids() if mid != uid]
     if room.leader_id == uid and mids:
         room.leader_id = mids[0]

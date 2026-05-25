@@ -114,15 +114,47 @@ python scripts/verify_zeabur_deploy.py --base-url https://your-app.zeabur.app
 - `https://你的域名/student/`
 - `https://你的域名/api/health`
 
-### 步骤 6：生产安全加固
+### 步骤 6：生产首次初始化（必做）
 
-公网暴露后**立即**重置演示账号密码：
+挂载 Volume 后数据库为空，**不要**在生产执行 `python main.py --init`（会清空库）。
+
+在 Zeabur **Variables** 中建议增加：
+
+| 变量 | 建议值 |
+|------|--------|
+| `TEAMMIND_DISABLE_DEMO_SEED` | `1`（关闭自动灌演示班级/帖子） |
+| `TEAMMIND_ALLOW_LEGACY_REGISTER` | `0`（仅允许邮箱注册） |
+| `TEAMMIND_EMAIL_DEV_MODE` | 开发可先 `1`；正式上线配置 SMTP 后设为 `0` |
+| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | 邮件验证码（QQ/163/Brevo 等免费 SMTP） |
+| `TEAMMIND_PUBLIC_URL` | 你的 HTTPS 域名 |
+
+在 Zeabur Shell（或本地连同一 Volume）创建首个管理员：
 
 ```bash
-python scripts/reset_production_passwords.py --admin-password "你的强密码" --include-students --student-password "学生强密码"
+python scripts/bootstrap_production.py --email admin@your-school.edu --password "YourStr0ngPass1"
 ```
 
-或在 Zeabur Shell 中执行相同命令（需已挂载 Volume 且数据库已初始化）。
+学员通过 `/student/` **邮箱注册**；教师仅由管理员创建或 bootstrap。
+
+已有演示数据升级时（保留帖子/班级关联）：
+
+```bash
+python scripts/migrate_mark_demo_users.py
+```
+
+### 多教师与登录安全
+
+- 每位教师仅能看到/操作 `Classroom.teacher_id` 为自己 ID 的班级；指挥舱 `GET /admin/dashboard` 按任课班级聚合。
+- 学员端启动时会调用 `GET /auth/me` 校验会话；`role=admin` 或 `status=disabled` 会清空本地 token。
+- 登录失败锁定为**单进程内存**计数（15 分钟内 5 次），多 worker 部署时各进程独立，生产建议前置网关限流或 Redis。
+
+### 步骤 7：生产安全加固（可选）
+
+若仍保留演示账号，请重置弱密码：
+
+```bash
+python scripts/reset_production_passwords.py --admin-password "你的强密码"
+```
 
 ## 三、可选参数
 

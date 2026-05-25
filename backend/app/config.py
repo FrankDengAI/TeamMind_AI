@@ -4,6 +4,33 @@ from pathlib import Path
 
 # 项目根目录 teammind-ai/
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+
+def load_project_env(env_path: Path | None = None) -> bool:
+    """加载项目根目录 .env（不覆盖已存在的环境变量）。"""
+    path = env_path or (BASE_DIR / ".env")
+    if not path.is_file():
+        return False
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].strip()
+        if "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        os.environ[key] = value
+    return True
+
+
+load_project_env()
 DATA_DIR = BASE_DIR / "data"
 UPLOAD_FOLDER = DATA_DIR / "uploads"
 PRIVATE_UPLOAD_DIR = DATA_DIR / "private_uploads"
@@ -97,3 +124,19 @@ class Config:
     BILLING_DEV_AUTO_PAY = os.environ.get("BILLING_DEV_AUTO_PAY", "0") != "0"
     BILLING_ORDER_TTL_MINUTES = int(os.environ.get("BILLING_ORDER_TTL_MINUTES", "30"))
     BILLING_WEBHOOK_SECRET = os.environ.get("BILLING_WEBHOOK_SECRET", "")
+
+    # 演示种子与认证（生产默认关闭演示自动灌库）
+    DISABLE_DEMO_SEED = os.environ.get("TEAMMIND_DISABLE_DEMO_SEED", "0") != "0"
+    SEED_DEMO_ON_FIRST_BOOT = os.environ.get("TEAMMIND_SEED_DEMO_ON_FIRST_BOOT", "0") != "0"
+    ALLOW_LEGACY_REGISTER = os.environ.get("TEAMMIND_ALLOW_LEGACY_REGISTER", "1") != "0"
+    DISABLE_EMAIL_AUTH = os.environ.get("TEAMMIND_DISABLE_EMAIL_AUTH", "1") != "0"
+
+    # 邮件 / 公网地址
+    PUBLIC_URL = os.environ.get("TEAMMIND_PUBLIC_URL", "http://127.0.0.1:5000").rstrip("/")
+    EMAIL_DEV_MODE = os.environ.get("TEAMMIND_EMAIL_DEV_MODE", "0") != "0"
+    SMTP_HOST = os.environ.get("SMTP_HOST", "")
+    SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+    SMTP_USER = os.environ.get("SMTP_USER", "")
+    SMTP_PASS = os.environ.get("SMTP_PASS", "")
+    SMTP_FROM = os.environ.get("SMTP_FROM", "")
+    SMTP_USE_TLS = os.environ.get("SMTP_USE_TLS", "1") != "0"

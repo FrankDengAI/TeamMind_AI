@@ -47,9 +47,10 @@ def save_timeline(cls: Classroom, items: list[dict]) -> list[dict]:
     return items
 
 
-def _active_member_ids(class_id: int) -> list[int]:
-    rows = ClassMembership.query.filter_by(class_id=class_id, status=ACTIVE).all()
-    return [r.user_id for r in rows]
+def _active_member_ids(class_id: int, *, include_demo: bool = False) -> list[int]:
+    from app.services.class_membership import active_class_member_ids
+
+    return active_class_member_ids(class_id, include_demo=include_demo)
 
 
 def build_class_health(class_id: int) -> dict[str, Any]:
@@ -143,7 +144,7 @@ def build_nudge_list(class_id: int) -> dict[str, Any]:
 
     for uid in member_ids:
         user = users.get(uid)
-        if not user:
+        if not user or user.is_demo:
             continue
         prof = UserProfile.query.filter_by(user_id=uid).first()
         if not prof or not (prof.active_tags_json and prof.active_tags_json != "[]"):

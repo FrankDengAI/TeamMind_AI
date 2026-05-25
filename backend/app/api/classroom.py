@@ -1,18 +1,21 @@
-"""班级管理、成员与加入/退出审批 API."""
+"""??????????????????????/?????????? API."""
 from __future__ import annotations
 
 import json
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import get_jwt_identity
+from app.middleware.auth import jwt_required_compat
 
 from app import db
 from app.middleware.auth import get_request_user_id, admin_required, write_audit
 from app.models import ClassMembership, ClassRequest, Classroom, GroupInfo, TeamActivity, TeamActivityParticipant, TeamRoom, User, UserProfile
 from app.middleware.entitlement import paywall_response
 from app.services.class_grouping import build_grouping_advice
+from app.services.class_membership import active_class_member_ids, filter_user_ids
 from app.services.classroom_insights import build_class_health, build_nudge_list, load_timeline, save_timeline
+from app.services.teacher_scope import admin_owns_class, teacher_classroom_query
 from app.services.nudge_service import send_class_nudges
 from app.services.entitlement_service import PaywallError, check_limit, consume_ai_points, get_entitlements, mask_ai_analysis
 
@@ -47,16 +50,22 @@ def _request_for(class_id: int, request_id: int):
     return req
 
 
-def _class_brief(cls: Classroom, *, include_advice: bool = True):
-    members = _active_members(cls.id)
+def _require_admin_class(cls: Classroom, admin_id: int):
+    if not admin_owns_class(cls, admin_id):
+        return jsonify({"error": "???????"}), 403
+    return None
+
+
+def _class_brief(cls: Classroom, *, include_advice: bool = True, include_demo: bool = False):
+    member_ids = active_class_member_ids(cls.id, include_demo=include_demo)
     teacher = User.query.get(cls.teacher_id) if cls.teacher_id else None
-    advice = build_grouping_advice(len(members), 4, use_llm=False) if include_advice else None
-    data = cls.to_dict(member_count=len(members), pending_count=_pending_count(cls.id), teacher=teacher, advice=advice)
+    advice = build_grouping_advice(len(member_ids), 4, use_llm=False) if include_advice else None
+    data = cls.to_dict(member_count=len(member_ids), pending_count=_pending_count(cls.id), teacher=teacher, advice=advice)
     data["activity_count"] = TeamActivity.query.filter_by(class_id=cls.id).count()
     return data
 
 
-def _class_detail(cls: Classroom):
+def _class_detail(cls: Classroom, *, include_health: bool = True):
     members = _active_members(cls.id)
     users = _user_map([m.user_id for m in members])
     rows = []
@@ -79,18 +88,26 @@ def _class_detail(cls: Classroom):
         _activity_brief(a)
         for a in TeamActivity.query.filter_by(class_id=cls.id).order_by(TeamActivity.create_time.desc()).all()
     ]
-    try:
-        data["health"] = build_class_health(cls.id)
-    except Exception:
-        data["health"] = None
+    if include_health:
+        try:
+            data["health"] = build_class_health(cls.id)
+        except Exception:
+            data["health"] = None
     data["timeline"] = load_timeline(cls)
     return data
 
 
 def _activity_brief(activity: TeamActivity):
+    real_ids = set()
+    if activity.class_id:
+        real_ids = set(active_class_member_ids(activity.class_id))
+    part_q = TeamActivityParticipant.query.filter_by(activity_id=activity.id)
+    if real_ids:
+        part_q = part_q.filter(TeamActivityParticipant.user_id.in_(real_ids))
+    part_count = part_q.count()
     return activity.to_dict(
         counts={
-            "participant_count": TeamActivityParticipant.query.filter_by(activity_id=activity.id).count(),
+            "participant_count": part_count,
             "team_count": TeamRoom.query.filter_by(activity_id=activity.id).count(),
             "group_count": GroupInfo.query.filter_by(activity_id=activity.id).count(),
         }
@@ -100,7 +117,7 @@ def _activity_brief(activity: TeamActivity):
 def _active_membership_or_error(class_id: int, user_id: int):
     membership = _membership_for(class_id, user_id)
     if not membership or membership.status != ACTIVE_MEMBER:
-        return None, (jsonify({"error": "你不是该班级成员，不能操作该班级活动"}), 403)
+        return None, (jsonify({"error": "????????????????????????????????"}), 403)
     return membership, None
 
 
@@ -109,16 +126,17 @@ def _active_membership_or_error(class_id: int, user_id: int):
 def admin_classes():
     uid = get_request_user_id()
     if request.method == "GET":
-        classes = Classroom.query.order_by(Classroom.create_time.desc()).all()
-        return jsonify([_class_brief(c) for c in classes])
+        include_demo = request.args.get("include_demo", "0") in ("1", "true", "yes")
+        classes = teacher_classroom_query(uid).order_by(Classroom.create_time.desc()).all()
+        return jsonify([_class_brief(c, include_demo=include_demo) for c in classes])
 
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
     if not name:
-        return jsonify({"error": "班级名称必填"}), 400
+        return jsonify({"error": "???????"}), 400
     code = (data.get("code") or "").strip() or None
     if code and Classroom.query.filter_by(code=code).first():
-        return jsonify({"error": "班级代码已存在"}), 400
+        return jsonify({"error": "??????????"}), 400
     try:
         class_count = Classroom.query.filter(Classroom.teacher_id == uid, Classroom.status == "active").count()
         check_limit(uid, "max_classes", current=class_count, increment=1)
@@ -147,8 +165,12 @@ def admin_classes():
 @admin_required
 def admin_class_detail(class_id):
     cls = Classroom.query.get_or_404(class_id)
+    err = _require_admin_class(cls, get_request_user_id())
+    if err:
+        return err
     if request.method == "GET":
-        return jsonify(_class_detail(cls))
+        include_health = request.args.get("include_health", "1") in ("1", "true", "yes")
+        return jsonify(_class_detail(cls, include_health=include_health))
     if request.method == "DELETE":
         active_activity = TeamActivity.query.filter(
             TeamActivity.class_id == cls.id,
@@ -173,8 +195,13 @@ def admin_class_detail(class_id):
 @admin_bp.route("/classes/<int:class_id>/members", methods=["POST"])
 @admin_required
 def add_class_members(class_id):
+    admin_id = get_request_user_id()
     cls = Classroom.query.get_or_404(class_id)
+    err = _require_admin_class(cls, admin_id)
+    if err:
+        return err
     data = request.get_json(silent=True) or {}
+    include_demo = bool(data.get("include_demo"))
     user_ids = data.get("user_ids") or []
     if data.get("user_id"):
         user_ids.append(data.get("user_id"))
@@ -187,6 +214,8 @@ def add_class_members(class_id):
     for raw_uid in dict.fromkeys(user_ids):
         user = User.query.get(int(raw_uid))
         if not user or user.role != "user":
+            continue
+        if user.is_demo and not include_demo:
             continue
         membership = _membership_for(cls.id, user.id)
         if not membership:
@@ -206,9 +235,12 @@ def add_class_members(class_id):
 @admin_required
 def remove_class_member(class_id, user_id):
     cls = Classroom.query.get_or_404(class_id)
+    err = _require_admin_class(cls, get_request_user_id())
+    if err:
+        return err
     membership = _membership_for(cls.id, user_id)
     if not membership or membership.status != ACTIVE_MEMBER:
-        return jsonify({"error": "该学生不在班级中"}), 404
+        return jsonify({"error": "????????????"}), 404
     membership.status = "removed"
     membership.left_at = datetime.utcnow()
     membership.source = "teacher_remove"
@@ -220,7 +252,10 @@ def remove_class_member(class_id, user_id):
 @admin_bp.route("/classes/<int:class_id>/requests", methods=["GET"])
 @admin_required
 def admin_class_requests(class_id):
-    Classroom.query.get_or_404(class_id)
+    cls = Classroom.query.get_or_404(class_id)
+    err = _require_admin_class(cls, get_request_user_id())
+    if err:
+        return err
     rows = ClassRequest.query.filter_by(class_id=class_id).order_by(ClassRequest.create_time.desc()).all()
     users = _user_map([r.user_id for r in rows])
     return jsonify([r.to_dict(users.get(r.user_id)) for r in rows])
@@ -230,13 +265,16 @@ def admin_class_requests(class_id):
 @admin_required
 def review_class_request(class_id, request_id, action):
     if action not in {"approve", "reject"}:
-        return jsonify({"error": "审批动作不支持"}), 400
+        return jsonify({"error": "????????????????"}), 400
     cls = Classroom.query.get_or_404(class_id)
+    err = _require_admin_class(cls, get_request_user_id())
+    if err:
+        return err
     req = _request_for(class_id, request_id)
     if not req:
-        return jsonify({"error": "申请不属于该班级"}), 400
+        return jsonify({"error": "????????????"}), 400
     if req.status != "pending":
-        return jsonify({"error": "申请已处理"}), 400
+        return jsonify({"error": "?????????"}), 400
     uid = get_request_user_id()
     data = request.get_json(silent=True) or {}
     membership = _membership_for(class_id, req.user_id)
@@ -269,7 +307,10 @@ def review_class_request(class_id, request_id, action):
 @admin_bp.route("/classes/<int:class_id>/grouping-advice", methods=["GET"])
 @admin_required
 def admin_class_grouping_advice(class_id):
-    Classroom.query.get_or_404(class_id)
+    cls = Classroom.query.get_or_404(class_id)
+    err = _require_admin_class(cls, get_request_user_id())
+    if err:
+        return err
     uid = get_request_user_id()
     preferred = request.args.get("group_size", default=4, type=int)
     want_deep = request.args.get("deep", default=0, type=int) == 1
@@ -288,8 +329,8 @@ def admin_class_grouping_advice(class_id):
             consume_ai_points(uid, "grouping.advice")
         except PaywallError as exc:
             return paywall_response(exc)
-    members = _active_members(class_id)
-    advice = build_grouping_advice(len(members), preferred, use_llm=use_llm)
+    member_ids = active_class_member_ids(class_id)
+    advice = build_grouping_advice(len(member_ids), preferred, use_llm=use_llm)
     if advice.get("ai_analysis"):
         advice["ai_analysis"] = mask_ai_analysis(
             advice["ai_analysis"],
@@ -300,18 +341,30 @@ def admin_class_grouping_advice(class_id):
 
 
 @bp.route("/classes", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def list_classes():
     uid = get_request_user_id()
-    classes = Classroom.query.filter_by(status="active").order_by(Classroom.create_time.desc()).all()
+    memberships = ClassMembership.query.filter_by(user_id=uid).all()
+    joined_ids = {m.class_id for m in memberships if m.status == ACTIVE_MEMBER}
+    pending_join_ids = {m.class_id for m in memberships if m.status == "pending_join"}
     pending = {
         r.class_id: r
         for r in ClassRequest.query.filter_by(user_id=uid, status="pending").order_by(ClassRequest.create_time.desc()).all()
     }
+    class_ids = joined_ids | pending_join_ids | set(pending.keys())
+    classes = (
+        Classroom.query.filter(Classroom.id.in_(class_ids), Classroom.status == "active").all()
+        if class_ids
+        else []
+    )
     out = []
     for cls in classes:
-        item = _class_brief(cls)
         membership = _membership_for(cls.id, uid)
+        is_member = membership and membership.status == ACTIVE_MEMBER
+        item = _class_brief(cls, include_advice=is_member)
+        if not is_member:
+            item.pop("advice", None)
+            item["member_count"] = None
         item["my_membership"] = membership.to_dict() if membership else None
         item["my_pending_request"] = pending.get(cls.id).to_dict() if pending.get(cls.id) else None
         out.append(item)
@@ -319,7 +372,7 @@ def list_classes():
 
 
 @bp.route("/classes/my", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def my_classes():
     uid = get_request_user_id()
     memberships = ClassMembership.query.filter(
@@ -337,12 +390,16 @@ def my_classes():
 
 
 @bp.route("/classes/<int:class_id>/activities", methods=["GET", "POST"])
-@jwt_required()
+@jwt_required_compat
 def class_activities(class_id):
     uid = get_request_user_id()
     cls = Classroom.query.get_or_404(class_id)
     user = User.query.get(uid)
     is_admin = bool(user and user.role == "admin")
+    if is_admin:
+        err = _require_admin_class(cls, uid)
+        if err:
+            return err
     if not is_admin:
         _, err = _active_membership_or_error(class_id, uid)
         if err:
@@ -356,10 +413,10 @@ def class_activities(class_id):
     data = request.get_json(silent=True) or {}
     title = (data.get("title") or "").strip()
     if not title:
-        return jsonify({"error": "活动标题不能为空"}), 400
+        return jsonify({"error": "??????????????"}), 400
     mode = data.get("mode") or "free_team"
     if mode not in {"free_team", "task_auto"}:
-        return jsonify({"error": "组队方式不支持"}), 400
+        return jsonify({"error": "????????????????"}), 400
     activity = TeamActivity(
         title=title,
         description=(data.get("description") or "").strip(),
@@ -380,19 +437,22 @@ def class_activities(class_id):
 
 
 @bp.route("/classes/<int:class_id>/join-request", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def join_class_request(class_id):
     uid = get_request_user_id()
+    user = User.query.get_or_404(uid)
+    if user.is_demo:
+        return jsonify({"error": "??????????????"}), 400
     cls = Classroom.query.get_or_404(class_id)
     if cls.status != "active":
-        return jsonify({"error": "班级当前不可申请加入"}), 400
+        return jsonify({"error": "???????????????????"}), 400
     membership = _membership_for(class_id, uid)
     if membership and membership.status == ACTIVE_MEMBER:
-        return jsonify({"error": "你已在该班级中"}), 400
+        return jsonify({"error": "?????????"}), 400
     if membership and membership.status == "pending_join":
-        return jsonify({"error": "加入申请已提交，请等待老师审批"}), 400
+        return jsonify({"error": "?????????????????????????????"}), 400
     if ClassRequest.query.filter_by(class_id=class_id, user_id=uid, request_type="join", status="pending").first():
-        return jsonify({"error": "加入申请已提交，请等待老师审批"}), 400
+        return jsonify({"error": "?????????????????????????????"}), 400
     data = request.get_json(silent=True) or {}
     req = ClassRequest(
         class_id=class_id,
@@ -415,15 +475,15 @@ def join_class_request(class_id):
 
 
 @bp.route("/classes/<int:class_id>/leave-request", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def leave_class_request(class_id):
     uid = get_request_user_id()
     cls = Classroom.query.get_or_404(class_id)
     membership = _membership_for(class_id, uid)
     if not membership or membership.status != ACTIVE_MEMBER:
-        return jsonify({"error": "你不在该班级中"}), 400
+        return jsonify({"error": "?????????"}), 400
     if ClassRequest.query.filter_by(class_id=class_id, user_id=uid, request_type="leave", status="pending").first():
-        return jsonify({"error": "退出申请已提交，请等待老师审批"}), 400
+        return jsonify({"error": "?????????????????????????????"}), 400
     data = request.get_json(silent=True) or {}
     req = ClassRequest(
         class_id=class_id,
@@ -444,7 +504,10 @@ def leave_class_request(class_id):
 @admin_bp.route("/classes/<int:class_id>/health", methods=["GET"])
 @admin_required
 def class_health(class_id):
-    Classroom.query.get_or_404(class_id)
+    cls = Classroom.query.get_or_404(class_id)
+    err = _require_admin_class(cls, get_request_user_id())
+    if err:
+        return err
     try:
         return jsonify(build_class_health(class_id))
     except ValueError as exc:
@@ -454,7 +517,10 @@ def class_health(class_id):
 @admin_bp.route("/classes/<int:class_id>/nudges", methods=["GET"])
 @admin_required
 def class_nudges(class_id):
-    Classroom.query.get_or_404(class_id)
+    cls = Classroom.query.get_or_404(class_id)
+    err = _require_admin_class(cls, get_request_user_id())
+    if err:
+        return err
     return jsonify(build_nudge_list(class_id))
 
 
@@ -463,15 +529,16 @@ def class_nudges(class_id):
 def class_nudges_send(class_id):
     cls = Classroom.query.get_or_404(class_id)
     uid = get_request_user_id()
-    if cls.teacher_id and cls.teacher_id != uid:
-        return jsonify({"error": "无权操作该班级"}), 403
+    err = _require_admin_class(cls, uid)
+    if err:
+        return err
     ent = get_entitlements(uid)
     if not ent.get("flags", {}).get("class_nudge_send"):
-        return jsonify({"error": "站内一键催办需升级专业版", "code": "PAYWALL", "feature": "class.nudge_send"}), 402
+        return jsonify({"error": "?????????????????????????????", "code": "PAYWALL", "feature": "class.nudge_send"}), 402
     data = request.get_json(silent=True) or {}
     user_ids = data.get("user_ids")
     if user_ids is not None and not isinstance(user_ids, list):
-        return jsonify({"error": "user_ids 须为数组"}), 400
+        return jsonify({"error": "user_ids ???????"}), 400
     result = send_class_nudges(
         class_id,
         uid,
@@ -486,15 +553,18 @@ def class_nudges_send(class_id):
 @admin_required
 def class_timeline(class_id):
     cls = Classroom.query.get_or_404(class_id)
+    err = _require_admin_class(cls, get_request_user_id())
+    if err:
+        return err
     if request.method == "GET":
         return jsonify({"timeline": load_timeline(cls)})
     data = request.get_json(silent=True) or {}
     items = data.get("timeline")
     if not isinstance(items, list):
-        return jsonify({"error": "timeline 须为数组"}), 400
+        return jsonify({"error": "timeline ???????"}), 400
     ent = get_entitlements(get_request_user_id())
     if not ent.get("flags", {}).get("timeline_editable"):
-        return jsonify({"error": "编辑学期时间轴需升级专业版", "code": "PAYWALL", "feature": "timeline.edit"}), 402
+        return jsonify({"error": "????????????????????????????", "code": "PAYWALL", "feature": "timeline.edit"}), 402
     save_timeline(cls, items)
     db.session.commit()
     write_audit("class_timeline_update", "classroom", cls.id)

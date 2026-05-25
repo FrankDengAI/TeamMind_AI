@@ -18,6 +18,32 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BACKEND_DIR = ROOT / "backend"
+
+
+def _load_local_env() -> None:
+    """启动前加载项目根目录 .env，确保邮件开发模式等对子进程生效。"""
+    env_file = ROOT / ".env"
+    if not env_file.is_file():
+        return
+    for raw in env_file.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].strip()
+        if "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        os.environ[key] = value
+
+
+_load_local_env()
 FRONTEND_DIR = ROOT / "frontend"
 WEB_EMBEDDED = ROOT / "web_embedded"
 WEB_EMBEDDED_ADMIN = ROOT / "web_embedded_admin"

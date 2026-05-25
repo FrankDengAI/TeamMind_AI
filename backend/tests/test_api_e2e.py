@@ -450,3 +450,103 @@ def test_class_grouping_advice_and_activity_scope(client, app):
     assert grouped_ids == allowed_ids
     assert all(len(g["member_ids"]) == 2 for g in grouped.json["groups"])
     assert all(g["ai_analysis"]["summary"] for g in grouped.json["groups"])
+
+
+def test_account_register_and_login(client):
+    reg = client.post(
+        "/api/auth/register",
+        json={"name": "新用户", "account": "newuser01", "password": "Passw0rd1"},
+    )
+    assert reg.status_code == 201
+    assert reg.json["user"]["account"] == "newuser01"
+    login = client.post("/api/auth/login", json={"account": "newuser01", "password": "Passw0rd1"})
+    assert login.status_code == 200
+
+
+def test_email_auth_disabled(client):
+    send = client.post("/api/auth/email/send-code", json={"email": "x@y.com", "purpose": "register"})
+    assert send.status_code == 403
+    reg = client.post(
+        "/api/auth/register/email",
+        json={"email": "x@y.com", "name": "X", "code": "123456", "password": "Passw0rd1"},
+    )
+    assert reg.status_code == 403
+
+
+def test_ops_create_groups_requires_class_or_users(client):
+    admin_headers = _token(client, "pytest_admin")
+    empty = client.post("/api/admin/ops/create-groups", json={"group_size": 2}, headers=admin_headers)
+    assert empty.status_code == 400
+
+
+def test_student_cannot_access_admin_overview(client):
+    headers = _token(client, "pytest_user")
+    assert client.get("/api/admin/overview", headers=headers).status_code == 403
+
+
+def test_teacher_cannot_manage_other_teacher_class(client, app):
+    with app.app_context():
+        pw = bcrypt.hashpw(b"test123", bcrypt.gensalt()).decode()
+        admin_a = User.query.filter_by(account="pytest_admin").first()
+        admin_b = User(name="Admin B", account="pytest_admin_b", password_hash=pw, role="admin")
+        db.session.add(admin_b)
+        db.session.flush()
+        cls_a = Classroom(name="班A", code="ISO-A", teacher_id=admin_a.id, status="active")
+        cls_b = Classroom(name="班B", code="ISO-B", teacher_id=admin_b.id, status="active")
+        db.session.add_all([cls_a, cls_b])
+        db.session.commit()
+        id_a, id_b = cls_a.id, cls_b.id
+
+    h_a = _token(client, "pytest_admin")
+    h_b = _token(client, "pytest_admin_b")
+    assert client.get(f"/api/admin/classes/{id_b}", headers=h_a).status_code == 403
+    assert client.get(f"/api/admin/classes/{id_a}", headers=h_b).status_code == 403
+
+
+def test_demo_user_cannot_join_real_class(client, app):
+    with app.app_context():
+        pw = bcrypt.hashpw(b"test123", bcrypt.gensalt()).decode()
+        demo = User(name="Demo", account="pytest_demo", password_hash=pw, role="user", is_demo=True)
+        db.session.add(demo)
+        db.session.flush()
+        admin = User.query.filter_by(account="pytest_admin").first()
+        cls = Classroom(name="真实班", code="REAL-ISO", teacher_id=admin.id, status="active")
+        db.session.add(cls)
+        db.session.commit()
+        class_id = cls.id
+
+    demo_headers = _token(client, "pytest_demo")
+    r = client.post(f"/api/classes/{class_id}/join-request", json={"message": "申请"}, headers=demo_headers)
+    assert r.status_code == 400
+
+
+def test_group_preview_filters_demo_user_ids(client, app):
+    with app.app_context():
+        pw = bcrypt.hashpw(b"test123", bcrypt.gensalt()).decode()
+        demo = User(name="Demo2", account="pytest_demo2", password_hash=pw, role="user", is_demo=True)
+        real = _seed_user_with_profile("pytest_real_grp", "Real", "设计执行")
+        db.session.add(demo)
+        db.session.commit()
+        ids = [real.id, demo.id]
+
+    admin_headers = _token(client, "pytest_admin")
+    preview = client.post(
+        "/api/group/preview",
+        json={"user_ids": ids, "group_size": 2, "config": {"mode": "heterogeneous"}},
+        headers=admin_headers,
+    )
+    assert preview.status_code == 400
+
+
+def test_disabled_user_token_invalidated(client, app):
+    headers = _token(client, "pytest_user")
+    with app.app_context():
+        from app.middleware.auth import bump_token_version
+
+        user = User.query.filter_by(account="pytest_user").first()
+        user.status = "disabled"
+        bump_token_version(user)
+        db.session.commit()
+
+    me = client.get("/api/auth/me", headers=headers)
+    assert me.status_code in (401, 403)

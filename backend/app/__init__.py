@@ -144,10 +144,7 @@ def create_app(config_class=Config, serve_static=False, static_ui=None):
         _ensure_runtime_schema()
         _seed_billing_plans()
         if not app.config.get("TESTING"):
-            _seed_demo_classes()
-            _seed_demo_content()
-            _seed_demo_activities()
-            _seed_demo_enrichment()
+            _maybe_seed_demo_data(app)
 
     try:
         from app.scheduler.jobs import start_scheduler
@@ -215,6 +212,12 @@ def _ensure_runtime_schema():
             "research_interest": "VARCHAR(240)",
             "availability": "VARCHAR(120)",
             "display_theme": "VARCHAR(32)",
+            "email": "VARCHAR(128)",
+            "email_verified_at": "DATETIME",
+            "is_demo": "BOOLEAN DEFAULT 0",
+            "status": "VARCHAR(16) DEFAULT 'active'",
+            "last_login_at": "DATETIME",
+            "token_version": "INTEGER DEFAULT 0",
         }
         for name, col_type in user_additions.items():
             if name not in user_cols:
@@ -247,6 +250,58 @@ def _ensure_runtime_schema():
             if name not in behavior_cols:
                 db.session.execute(text(f"ALTER TABLE behavior_log ADD COLUMN {name} {col_type}"))
     db.session.commit()
+
+
+_DEMO_STUDENT_PASSWORD = "123456"
+
+
+def _demo_student_accounts_from_seed() -> set[str]:
+    """读取 database/seeds/demo_students.json 中的演示学生账号."""
+    import json
+    from pathlib import Path
+
+    seed_path = Path(__file__).resolve().parents[2] / "database" / "seeds" / "demo_students.json"
+    if not seed_path.is_file():
+        return set()
+    data = json.loads(seed_path.read_text(encoding="utf-8"))
+    return {item["account"] for item in data if item.get("account")}
+
+
+def _sync_demo_student_passwords():
+    """将演示学生账号密码对齐为文档默认 123456（仅当当前密码不匹配时更新）。"""
+    from app.api.auth import _check_password, _hash_password
+    from app.models import User
+
+    seed_accounts = _demo_student_accounts_from_seed()
+    class_prefixes = ("ai2401_", "se2402_", "ds2301_", "dm2401_")
+    changed = False
+    for user in User.query.filter_by(role="user").all():
+        if not user.is_demo and user.account not in seed_accounts:
+            continue
+        if user.account not in seed_accounts and not any(user.account.startswith(p) for p in class_prefixes):
+            continue
+        if _check_password(_DEMO_STUDENT_PASSWORD, user.password_hash or ""):
+            continue
+        user.password_hash = _hash_password(_DEMO_STUDENT_PASSWORD)
+        changed = True
+    if changed:
+        db.session.commit()
+
+
+def _maybe_seed_demo_data(app):
+    """按配置决定是否灌入演示班级/社区/活动数据."""
+    from app.models import User
+
+    if app.config.get("DISABLE_DEMO_SEED"):
+        return
+    if app.config.get("SEED_DEMO_ON_FIRST_BOOT"):
+        if User.query.first() is not None:
+            return
+    _seed_demo_classes()
+    _seed_demo_content()
+    _seed_demo_activities()
+    _seed_demo_enrichment()
+    _sync_demo_student_passwords()
 
 
 def _seed_billing_plans():
@@ -334,13 +389,14 @@ def _seed_demo_content():
 
     students = User.query.filter_by(role="user").order_by(User.id.asc()).all()
     if not students:
-        password_hash = bcrypt.hashpw(b"demo123", bcrypt.gensalt()).decode()
+        password_hash = bcrypt.hashpw(_DEMO_STUDENT_PASSWORD.encode(), bcrypt.gensalt()).decode()
         for idx, item in enumerate(demo_posts[:6], start=1):
             user = User(
                 name=f"演示同学{idx:02d}",
                 account=item.get("account") or f"demo_student_{idx:02d}",
                 password_hash=password_hash,
                 role="user",
+                is_demo=True,
                 bio="用于初始化学习社区示例内容",
             )
             db.session.add(user)
@@ -445,7 +501,7 @@ def _seed_demo_classes():
         return
 
     roster_names = _load_class_roster_names()
-    password_hash = bcrypt.hashpw(b"demo123", bcrypt.gensalt()).decode()
+    password_hash = bcrypt.hashpw(_DEMO_STUDENT_PASSWORD.encode(), bcrypt.gensalt()).decode()
     admin = User.query.filter_by(role="admin").first()
     class_specs = [
         ("人工智能 2401 班", "AI2401", "人工智能", "2024", "AI 产品创新实践", "ai2401"),
@@ -484,6 +540,7 @@ def _seed_demo_classes():
                     account=account,
                     password_hash=password_hash,
                     role="user",
+                    is_demo=True,
                     headline=headline_tpl,
                     bio=display_bio,
                     research_interest=display_interest,

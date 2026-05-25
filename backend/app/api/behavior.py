@@ -1,6 +1,7 @@
 """行为埋点 API."""
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import get_jwt_identity
+from app.middleware.auth import jwt_required_compat
 
 from app import db
 from app.models import BehaviorLog, GroupInfo, Task, User
@@ -10,7 +11,7 @@ bp = Blueprint("behavior", __name__)
 
 
 @bp.route("/log", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def log_behavior():
     uid = get_request_user_id()
     data = request.get_json(silent=True) or {}

@@ -19,17 +19,14 @@ def _jwt_secrets():
     return secrets
 
 
-def decode_jwt_token(token: str):
-    """解析原始 JWT 字符串，兼容品牌升级前后的密钥（供 WebSocket 等场景使用）."""
+def _decode_payload(token: str) -> tuple[dict | None, str | None, int | None]:
+    """解析 JWT 载荷，兼容多密钥."""
     token = (token or "").strip()
     if not token or token.lower() in {"null", "undefined"}:
         return None, "未登录或令牌无效", 401
     for secret in _jwt_secrets():
         try:
-            payload = pyjwt.decode(token, secret, algorithms=["HS256"])
-            sub = payload.get("sub")
-            if sub is not None:
-                return str(sub), None, None
+            return pyjwt.decode(token, secret, algorithms=["HS256"]), None, None
         except pyjwt.ExpiredSignatureError:
             return None, "登录已过期，请重新登录", 401
         except Exception:
@@ -37,13 +34,54 @@ def decode_jwt_token(token: str):
     return None, "未登录或令牌无效", 401
 
 
+def _validate_user_token(payload: dict) -> tuple[User | None, str | None, int | None]:
+    sub = payload.get("sub")
+    if sub is None:
+        return None, "未登录或令牌无效", 401
+    try:
+        uid = int(sub)
+    except (TypeError, ValueError):
+        return None, "未登录或令牌无效", 401
+    user = User.query.get(uid)
+    if not user:
+        return None, "用户不存在", 401
+    if user.status == "disabled":
+        return None, "账号已被禁用，请联系管理员", 403
+    token_ver = int(payload.get("ver", 0) or 0)
+    if token_ver != int(user.token_version or 0):
+        return None, "登录已失效，请重新登录", 401
+    return user, None, None
+
+
+def decode_jwt_token(token: str):
+    """解析原始 JWT（WebSocket 等），校验版本与账号状态."""
+    payload, err, status = _decode_payload(token)
+    if err:
+        return None, err, status
+    user, err, status = _validate_user_token(payload)
+    if err:
+        return None, err, status
+    return str(user.id), None, None
+
+
 def resolve_jwt_sub():
-    """解析 Authorization Bearer 令牌，兼容品牌升级前后的 JWT 密钥."""
+    """解析 Authorization Bearer 令牌."""
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return None, "未登录或令牌无效", 401
-    token = auth[7:].strip()
-    return decode_jwt_token(token)
+    return decode_jwt_token(auth[7:].strip())
+
+
+def load_current_user() -> User | None:
+    """从 g 或 JWT 获取当前用户（需先经过 jwt_required_compat / admin_required）."""
+    if getattr(g, "current_user", None) is not None:
+        return g.current_user
+    if getattr(g, "jwt_sub", None) is not None:
+        return User.query.get(int(g.jwt_sub))
+    try:
+        return User.query.get(int(get_jwt_identity()))
+    except Exception:
+        return None
 
 
 def get_request_user_id():
@@ -53,33 +91,62 @@ def get_request_user_id():
     return int(get_jwt_identity())
 
 
+def bump_token_version(user: User) -> None:
+    user.token_version = int(user.token_version or 0) + 1
+
+
+def _authenticate_request():
+    """解析并校验请求令牌，写入 g.jwt_sub / g.current_user."""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None, "未登录或令牌无效", 401
+    payload, err, status = _decode_payload(auth[7:].strip())
+    if err:
+        return None, err, status
+    user, err, status = _validate_user_token(payload)
+    if err:
+        return None, err, status
+    g.jwt_sub = str(user.id)
+    g.current_user = user
+    return user, None, None
+
+
+def jwt_required_compat(fn):
+    """兼容旧密钥 + token_version + 禁用账号的 jwt_required 替代."""
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        _, err, status = _authenticate_request()
+        if err:
+            return jsonify({"error": err}), status
+        return fn(*args, **kwargs)
+
+    return wrapper
+
+
 def login_required(fn):
     """替代 jwt_required：统一返回 401，并兼容旧版 JWT 密钥."""
 
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        sub, err, status = resolve_jwt_sub()
+        _, err, status = _authenticate_request()
         if err:
             return jsonify({"error": err}), status
-        g.jwt_sub = sub
         return fn(*args, **kwargs)
 
     return wrapper
 
 
 def admin_required(fn):
-    """要求管理员角色."""
+    """要求管理员角色且账号有效."""
 
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        sub, err, status = resolve_jwt_sub()
+        user, err, status = _authenticate_request()
         if err:
             return jsonify({"error": err}), status
-        uid = int(sub)
-        user = User.query.get(uid)
-        if not user or user.role != "admin":
+        if user.role != "admin":
             return jsonify({"error": "需要管理员权限"}), 403
-        g.jwt_sub = sub
         return fn(*args, **kwargs)
 
     return wrapper
@@ -89,19 +156,24 @@ def write_audit(action, resource=None, resource_id=None, detail=None):
     """写入审计日志."""
     uid = None
     try:
-        sub, _, _ = resolve_jwt_sub()
-        if sub:
-            uid = int(sub)
+        user = load_current_user()
+        if user:
+            uid = user.id
     except Exception:
         try:
-            from flask_jwt_extended import verify_jwt_in_request
-
-            verify_jwt_in_request(optional=True)
-            ident = get_jwt_identity()
-            if ident:
-                uid = int(ident)
+            sub, _, _ = resolve_jwt_sub()
+            if sub:
+                uid = int(sub)
         except Exception:
-            pass
+            try:
+                from flask_jwt_extended import verify_jwt_in_request
+
+                verify_jwt_in_request(optional=True)
+                ident = get_jwt_identity()
+                if ident:
+                    uid = int(ident)
+            except Exception:
+                pass
     log = AuditLog(
         user_id=uid,
         action=action,

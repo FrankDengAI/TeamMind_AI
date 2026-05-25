@@ -6,7 +6,8 @@ import uuid
 from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import get_jwt_identity
+from app.middleware.auth import jwt_required_compat
 
 from app import db
 from app.config import Config
@@ -37,7 +38,7 @@ def _parse_json_field(value, default=None):
 
 
 @bp.route("/feed", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def feed():
     uid = get_request_user_id()
     page = max(1, request.args.get("page", default=1, type=int))
@@ -53,7 +54,7 @@ def feed():
 
 
 @bp.route("/posts", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def create_post():
     uid = get_request_user_id()
     body = request.get_json(silent=True) or {}
@@ -97,7 +98,7 @@ def create_post():
 
 
 @bp.route("/posts/<int:post_id>", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def get_post(post_id):
     uid = get_request_user_id()
     post = CommunityPost.query.get_or_404(post_id)
@@ -119,7 +120,7 @@ def _published_post_or_404(post_id: int):
 
 
 @bp.route("/posts/<int:post_id>/like", methods=["POST", "DELETE"])
-@jwt_required()
+@jwt_required_compat
 def like_post(post_id):
     uid = get_request_user_id()
     post = _published_post_or_404(post_id)
@@ -138,7 +139,7 @@ def like_post(post_id):
 
 
 @bp.route("/posts/<int:post_id>/favorite", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def favorite_post(post_id):
     uid = get_request_user_id()
     post = _published_post_or_404(post_id)
@@ -153,7 +154,7 @@ def favorite_post(post_id):
 
 
 @bp.route("/posts/<int:post_id>/comment", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def comment_post(post_id):
     uid = get_request_user_id()
     post = _published_post_or_404(post_id)

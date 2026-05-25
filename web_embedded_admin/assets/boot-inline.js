@@ -88,4 +88,16 @@
   window.teammindBootLang = bootLang
   window.teammindApplyBootInline = applyBootInline
   window.teammindSetBootLoadingChrome = setBootLoadingChrome
+
+  window.setTimeout(() => {
+    const boot = document.getElementById('app-loading')
+    if (!boot || boot.classList.contains('boot-hidden')) return
+    boot.classList.add('boot-hidden')
+    boot.setAttribute('aria-hidden', 'true')
+    document.documentElement.classList.remove('boot-loading')
+    const app = document.getElementById('app')
+    if (app && !app.innerHTML.trim()) {
+      app.innerHTML = '<main style="min-height:100vh;display:grid;place-items:center;padding:32px;background:#f8fafc;color:#0f172a;font-family:Segoe UI,Microsoft YaHei,sans-serif"><section style="max-width:560px;padding:28px;border:1px solid #fee2e2;border-radius:22px;background:#fff"><h1 style="margin:0 0 12px;font-size:22px">教师端未能启动</h1><p style="margin:0 0 10px;line-height:1.7;color:#475569">页面脚本加载失败或初始化超时。请按 <kbd>Ctrl+F5</kbd> 强制刷新，并确认已运行 <code>python main.py</code>。</p><p style="margin:0;color:#64748b;font-size:14px">演示教师账号：<strong>admin</strong> / <strong>admin123</strong></p></section></main>'
+    }
+  }, 20000)
 })()

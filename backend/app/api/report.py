@@ -2,7 +2,8 @@
 import json
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import get_jwt_identity
+from app.middleware.auth import jwt_required_compat
 
 from app import db
 from app.middleware.auth import get_request_user_id, admin_required, write_audit
@@ -15,7 +16,7 @@ bp = Blueprint("report", __name__)
 
 
 @bp.route("/<int:group_id>", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def get_report(group_id):
     uid = get_request_user_id()
     user = User.query.get(uid)

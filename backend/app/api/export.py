@@ -4,7 +4,7 @@ from flask import Blueprint, Response, jsonify, request
 from app import db
 from app.middleware.auth import admin_required, get_request_user_id, write_audit
 from app.middleware.entitlement import paywall_response
-from app.models import GroupInfo, Task, TeamReport, UserProfile, UserSubscription
+from app.models import GroupInfo, User, Task, TeamReport, UserProfile, UserSubscription
 from app.services.entitlement_service import PaywallError, check_limit, consume_ai_points, get_entitlements
 from app.services.export_service import ExportService
 
@@ -33,7 +33,9 @@ def export_data(resource_type):
         return paywall_response(exc)
 
     if resource_type == "profile":
-        profiles = UserProfile.query.all()
+        profiles = UserProfile.query.join(User, User.id == UserProfile.user_id).filter(
+            (User.is_demo == False) | (User.is_demo.is_(None))
+        ).all()
         data = exporter.export_profiles(profiles, preview=preview)
         mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         fname = "profiles_preview.xlsx" if preview else "profiles.xlsx"

@@ -44,6 +44,17 @@ if (typeof document !== 'undefined' && (!createApp || !window.axios || !window.E
 
 const API_BASE = window.TEAMMIND_API_BASE || '/api'
 const STUDENT_PORTAL_URL = window.TEAMMIND_STUDENT_URL || '/student/'
+const ADMIN_DEBUG = (() => {
+  try {
+    return new URLSearchParams(window.location.search).has('admin_debug')
+      || localStorage.getItem('teammind_admin_debug') === '1'
+  } catch {
+    return false
+  }
+})()
+function adminDbg(...args) {
+  if (ADMIN_DEBUG) console.log('[TeamMind Admin]', ...args)
+}
 const APP_LANG_KEY = 'teammind_app_lang'
 const VALID_APP_LANGS = new Set(['zh-CN', 'zh-Hant', 'en', 'ja', 'ko', 'fr', 'de', 'es'])
 function resolveInitialAppLang() {
@@ -95,9 +106,17 @@ const ADMIN_I18N = {
     switchToStudent: '跳转学生端',
     switchToStudentHint: '以学生视角查看画像、组队、任务和社区',
     account: '账号',
+    accountPlaceholder: '字母、数字、下划线',
+    forgotPasswordHint: '忘记密码？登录后在「个人主页」修改，或由超级管理员重置',
+    email: '邮箱',
+    teacherAccount: '教师账号',
+    verifyCode: '验证码',
+    sendCode: '发送验证码',
+    forgotPassword: '忘记密码',
+    resetPassword: '重置密码',
+    backToLogin: '返回登录',
     password: '密码',
     loginButton: '登 录',
-    demoHint: '默认 admin / admin123 · 演示脚本见 README',
     refresh: '刷新',
     profileHome: '个人主页',
     logout: '退出登录',
@@ -132,9 +151,17 @@ const ADMIN_I18N = {
     switchToStudent: 'Open Student App',
     switchToStudentHint: 'View profiles, teams, tasks and community as a student.',
     account: 'Account',
+    accountPlaceholder: 'Letters, numbers, underscore',
+    forgotPasswordHint: 'Forgot password? Change it under Profile after login, or ask a super admin to reset.',
+    email: 'Email',
+    teacherAccount: 'Teacher account',
+    verifyCode: 'Verification code',
+    sendCode: 'Send code',
+    forgotPassword: 'Forgot password',
+    resetPassword: 'Reset password',
+    backToLogin: 'Back to login',
     password: 'Password',
     loginButton: 'Log in',
-    demoHint: 'Default admin / admin123 · See README for demo scripts',
     refresh: 'Refresh',
     profileHome: 'Profile',
     logout: 'Log out',
@@ -489,6 +516,10 @@ Object.assign(ADMIN_TEXT_I18N.en, {
   学员画像全景: 'Student Profile Overview',
   '教师端展示完整评分、来源拆解、标签证据与分组参考；学生端不展示分数。': 'Teacher view shows full scores, source breakdown, tag evidence and grouping references; students do not see scores.',
   查看计算规则: 'View Scoring Rules',
+  创建教师账号: 'Create Teacher Account',
+  初始密码: 'Initial Password',
+  '至少8位，含字母与数字': 'At least 8 characters with letters and numbers',
+  创建: 'Create',
   学员总数: 'Total Students',
   画像已录入: 'Profiles Ready',
   画像完成率: 'Profile Completion',
@@ -636,8 +667,12 @@ Object.assign(ADMIN_TEXT_I18N.en, {
   '当前为 AI 预览，升级 Pro 查看完整 DeepSeek 分析': 'AI preview only — upgrade to Pro for full DeepSeek analysis',
   '当前为预览导出（前 5 行 + 水印），升级 Pro 下载完整文件': 'Preview export only (first 5 rows + watermark). Upgrade to Pro for full file.',
   班级健康度: 'Class health',
+  '加载中...': 'Loading…',
+  健康分: 'Health score',
+  待催办: 'Pending nudges',
+  风险: 'Risk',
   学期时间轴: 'Semester timeline',
-  班级 Copilot: 'Class Copilot',
+  '班级 Copilot': 'Class Copilot',
   一键催办: 'Send nudges',
   预览分组效果: 'Preview grouping',
   多方案对比: 'Compare scenarios',
@@ -885,7 +920,9 @@ let adminGetOpenCCFn = () => null
 
 http.interceptors.request.use((cfg) => {
   const t = TeamMindAdminRuntime.storage.getItem('tf_admin_token')
-  if (t) cfg.headers.Authorization = `Bearer ${t}`
+  if (t && t !== 'null' && t !== 'undefined') {
+    cfg.headers.Authorization = `Bearer ${t}`
+  }
   return cfg
 })
 function isAdminAuthFailure(err) {
@@ -904,13 +941,16 @@ http.interceptors.response.use(
       window.dispatchEvent(new CustomEvent('teammind-paywall', { detail: err.response?.data || {} }))
       return Promise.reject(err)
     }
-    if (!isAdminAuthFailure(err)) {
+    const silentAuth = !!err.config?.silentAuth
+    if (!isAdminAuthFailure(err) && !silentAuth) {
       ElementPlus?.ElMessage?.error(err.response?.data?.error || err.message || '请求失败')
     }
     if (isAdminAuthFailure(err)) {
       TeamMindAdminRuntime.storage.removeItem('tf_admin_token')
       TeamMindAdminRuntime.storage.removeItem('tf_admin_user')
-      window.dispatchEvent(new CustomEvent('teammind-admin-auth-expired'))
+      if (!silentAuth) {
+        window.dispatchEvent(new CustomEvent('teammind-admin-auth-expired'))
+      }
     }
     return Promise.reject(err)
   }
@@ -935,18 +975,20 @@ function userAvatar(u) {
 
 function activityDisplayTitle(activity) {
   if (!activity) return ''
-  const rawTitle = activity.title || ''
-  if (window.TeamMindI18n?.translateDemoText) {
-    if (rawTitle) {
-      return window.TeamMindI18n.translateDemoText(rawTitle, adminUiT, adminGetLang(), adminGetOpenCCFn())
-    }
-    const className = activity.classroom?.name || adminUiT('未识别班级')
-    const title = adminUiT('未命名活动')
-    return window.TeamMindI18n.translateDemoText(`${className}｜${title}`, adminUiT, adminGetLang(), adminGetOpenCCFn())
+  const className = (activity.classroom?.name || '').trim()
+  let rawTitle = (activity.title || '').trim()
+  if (className && rawTitle) {
+    const prefix = new RegExp(`^${className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[｜|]\\s*`)
+    rawTitle = rawTitle.replace(prefix, '').trim() || rawTitle
   }
-  const className = activity.classroom?.name || adminUiT('未识别班级')
-  const title = activity.title || adminUiT('未命名活动')
-  return title.startsWith(`${className}｜`) ? title : `${className}｜${title}`
+  const fallbackTitle = adminUiT('未命名活动')
+  const composite = className
+    ? `${className}｜${rawTitle || fallbackTitle}`
+    : (rawTitle || fallbackTitle)
+  if (window.TeamMindI18n?.translateDemoText) {
+    return window.TeamMindI18n.translateDemoText(composite, adminUiT, adminGetLang(), adminGetOpenCCFn())
+  }
+  return composite
 }
 
 /** Element Plus CDN 全量包使用 ElMessageBox，非 MessageBox */
@@ -1036,16 +1078,23 @@ const App = {
     const page = ref('workbench')
     const workbenchStep = ref(1)
     const user = ref(safeJsonStorage('tf_admin_user'))
-    const token = ref(TeamMindAdminRuntime.storage.getItem('tf_admin_token') || '')
+    const token = ref('')
     const loading = ref(false)
+    const pageLoading = ref(false)
     const userSearch = ref('')
     const rulesVisible = ref(false)
     const profileDrawerVisible = ref(false)
     const selectedUserRow = ref(null)
     const activityDetailDrawerVisible = ref(false)
     let refreshTimer = null
+    let pageLoadSeq = 0
+    let classDetailSeq = 0
+    let activityDetailSeq = 0
+    let navChain = Promise.resolve()
 
-    const loginForm = ref({ account: 'admin', password: '' })
+    const loginForm = ref({ account: '', password: '' })
+    const loginNotice = ref('')
+    const authTab = ref('login')
     const overview = ref({ user_count: 0, profile_count: 0, group_count: 0, groups: [] })
     const users = ref([])
     const commandDash = ref({ alerts: [] })
@@ -1214,7 +1263,9 @@ const App = {
       return WORKFLOW_PHASES.find((p) => step >= p.range[0] && step <= p.range[1]) || WORKFLOW_PHASES[0]
     })
 
-    const studentUsers = computed(() => users.value.filter((r) => r.user?.role === 'user'))
+    const studentUsers = computed(() =>
+      users.value.filter((r) => r.user?.role === 'user' && !r.user?.is_demo)
+    )
     const profileReady = computed(() => studentUsers.value.filter((r) => r.has_profile))
     const profilePending = computed(() => studentUsers.value.filter((r) => !r.has_profile))
     const profileRate = computed(() => {
@@ -1562,7 +1613,8 @@ const App = {
       window.removeEventListener('hashchange', onHashChange)
       window.addEventListener('hashchange', onHashChange)
       if (window.location.hash !== '#workbench') window.location.hash = 'workbench'
-      refreshAll()
+      page.value = 'workbench'
+      loadWorkbenchBootstrap()
       loadEntitlements().then(() => {
         if (entitlements.value && !entitlements.value.trial_used && entitlements.value.plan_code === 'free') {
           ElementPlus.ElNotification?.({
@@ -1582,47 +1634,76 @@ const App = {
       loading.value = true
       try {
         const { data } = await http.post('/auth/login', loginForm.value)
+        if (data.user?.role !== 'admin') {
+          ElementPlus.ElMessage.error('请使用教师/管理员账号登录')
+          return
+        }
         setAuth(data)
+        loginNotice.value = ''
         ElementPlus.ElMessage.success('登录成功')
+        await loadPageData('workbench')
+      } catch (e) {
+        ElementPlus.ElMessage.error(e?.response?.data?.error || '登录失败')
       } finally {
         loading.value = false
       }
     }
 
-    function logout() {
+    function clearAdminSessionStorage() {
+      TeamMindAdminRuntime.storage.removeItem('tf_admin_token')
+      TeamMindAdminRuntime.storage.removeItem('tf_admin_user')
+    }
+
+    function normalizeStoredAdminToken() {
+      const raw = TeamMindAdminRuntime.storage.getItem('tf_admin_token') || ''
+      const trimmed = raw.trim()
+      if (!trimmed || trimmed === 'null' || trimmed === 'undefined') {
+        clearAdminSessionStorage()
+        return ''
+      }
+      return trimmed
+    }
+
+    function logout(notice = '') {
       stopAutoRefresh()
       token.value = ''
       user.value = null
-      TeamMindAdminRuntime.storage.removeItem('tf_admin_token')
-      TeamMindAdminRuntime.storage.removeItem('tf_admin_user')
+      clearAdminSessionStorage()
+      if (notice) loginNotice.value = notice
       if (window.location.hash) window.location.hash = ''
       updateDocumentTitle()
     }
 
     function handleAuthExpired() {
-      if (!token.value && !user.value) return
       stopAutoRefresh()
       token.value = ''
       user.value = null
+      clearAdminSessionStorage()
       page.value = 'workbench'
+      loginNotice.value = '登录已过期或无效，请使用教师账号 admin / 密码 admin123 重新登录。'
       ElementPlus.ElMessage.warning('登录状态已失效，请重新登录')
     }
 
     async function validateSession() {
-      if (!token.value) return false
+      const stored = normalizeStoredAdminToken()
+      token.value = stored
+      if (!stored) return false
       try {
-        const { data } = await http.get('/auth/me')
+        const { data } = await http.get('/auth/me', { silentAuth: true })
         if (data?.role !== 'admin') {
+          loginNotice.value = '当前账号不是教师管理员，请使用 admin / admin123 登录本页。'
           ElementPlus.ElMessage.error('请使用管理员账号登录')
           logout()
           return false
         }
         user.value = data
+        loginNotice.value = ''
         accountForm.value = buildAccountForm(data)
         TeamMindAdminRuntime.storage.setItem('tf_admin_user', JSON.stringify(data))
-        await loadEntitlements()
         return true
-      } catch {
+      } catch (e) {
+        const msg = e?.response?.data?.error || '登录已过期'
+        loginNotice.value = `${msg}。请使用教师账号 admin / 密码 admin123 重新登录。`
         logout()
         return false
       }
@@ -1672,14 +1753,28 @@ const App = {
       overview.value = data
     }
 
-    async function loadUsers() {
-      const { data } = await http.get('/admin/users')
-      users.value = data
+    let dashboardCacheAt = 0
+    let dashboardCacheKey = ''
+
+    async function loadUsers(includeProfile = true) {
+      const { data } = await http.get('/admin/users', {
+        params: { exclude_demo: 1, limit: 500, include_profile: includeProfile ? 1 : 0 },
+      })
+      users.value = data.items ?? data
     }
 
-    async function loadCommandDashboard() {
-      const { data } = await http.get('/admin/dashboard', { params: selectedActivityId.value ? { activity_id: selectedActivityId.value } : {} })
+    async function loadCommandDashboard(force = false) {
+      const key = String(selectedActivityId.value || '')
+      const now = Date.now()
+      if (!force && dashboardCacheAt && dashboardCacheKey === key && now - dashboardCacheAt < 30000) {
+        return
+      }
+      const { data } = await http.get('/admin/dashboard/summary', {
+        params: selectedActivityId.value ? { activity_id: selectedActivityId.value } : {},
+      })
       commandDash.value = data
+      dashboardCacheAt = now
+      dashboardCacheKey = key
     }
 
     async function loadConfig() {
@@ -1700,14 +1795,27 @@ const App = {
     async function loadActivities() {
       const { data } = await http.get('/admin/team-activities')
       activities.value = data
-      if (!selectedActivityId.value && data.length) selectedActivityId.value = data[0].id
+      if (data.length) {
+        const stillValid = selectedActivityId.value && data.some((a) => a.id === selectedActivityId.value)
+        if (!stillValid) selectedActivityId.value = data[0].id
+      } else {
+        selectedActivityId.value = null
+        activityDetail.value = null
+      }
     }
 
     async function loadClasses() {
       const { data } = await http.get('/admin/classes')
       classes.value = data
-      if (!selectedClassId.value && data.length) selectedClassId.value = data[0].id
-      if (!activityForm.value.class_id && data.length) activityForm.value.class_id = data[0].id
+      if (data.length) {
+        const stillValid = selectedClassId.value && data.some((c) => c.id === selectedClassId.value)
+        if (!stillValid) selectedClassId.value = data[0].id
+        if (!activityForm.value.class_id || !data.some((c) => c.id === activityForm.value.class_id)) {
+          activityForm.value.class_id = data[0].id
+        }
+      } else {
+        selectedClassId.value = null
+      }
     }
 
     async function loadGroupingTemplates() {
@@ -1803,12 +1911,15 @@ const App = {
     }
 
     async function previewGrouping() {
-      const memberIds = (classDetail.value?.members || []).map((m) => m.user?.id).filter(Boolean)
+      const memberIds = (classDetail.value?.members || [])
+        .filter((m) => m.user?.id && !m.user?.is_demo && m.profile)
+        .map((m) => m.user.id)
       if (memberIds.length < 3) return ElementPlus.ElMessage.warning(t('班级成员不足，无法预览'))
       loading.value = true
       try {
         const { data } = await http.post('/group/preview', {
           user_ids: memberIds,
+          class_id: selectedClassId.value || undefined,
           group_size: classAdviceGroupSize.value,
           config: { template_id: selectedGroupingTemplate.value },
         })
@@ -1821,11 +1932,17 @@ const App = {
     }
 
     async function compareGroupingScenarios() {
-      const memberIds = (classDetail.value?.members || []).map((m) => m.user?.id).filter(Boolean)
+      const memberIds = (classDetail.value?.members || [])
+        .filter((m) => m.user?.id && !m.user?.is_demo && m.profile)
+        .map((m) => m.user.id)
       if (memberIds.length < 3) return ElementPlus.ElMessage.warning(t('班级成员不足'))
       loading.value = true
       try {
-        const { data } = await http.post('/group/compare', { user_ids: memberIds, group_size: classAdviceGroupSize.value })
+        const { data } = await http.post('/group/compare', {
+          user_ids: memberIds,
+          class_id: selectedClassId.value || undefined,
+          group_size: classAdviceGroupSize.value,
+        })
         groupingCompare.value = data.scenarios
       } catch (e) {
         if (e.response?.status === 402) openUpgrade({ feature: 'grouping.compare' })
@@ -1942,22 +2059,30 @@ const App = {
         classDetail.value = null
         return
       }
+      const seq = ++classDetailSeq
       selectedClassId.value = id
-      const { data } = await http.get(`/admin/classes/${id}`)
-      classDetail.value = data
-      classHealth.value = data.health || null
-      classTimeline.value = data.timeline || []
-      loadClassNudges()
-      loadRubrics()
-      classForm.value = {
-        name: data.name || '',
-        code: data.code || '',
-        major: data.major || '',
-        grade: data.grade || '',
-        course_name: data.course_name || '',
-        max_students: data.max_students || 20,
-        description: data.description || '',
-        status: data.status || 'active',
+      try {
+        const { data } = await http.get(`/admin/classes/${id}`)
+        if (seq !== classDetailSeq || page.value !== 'classes') return
+        classDetail.value = data
+        classHealth.value = data.health || null
+        classTimeline.value = data.timeline || []
+        classForm.value = {
+          name: data.name || '',
+          code: data.code || '',
+          major: data.major || '',
+          grade: data.grade || '',
+          course_name: data.course_name || '',
+          max_students: data.max_students || 20,
+          description: data.description || '',
+          status: data.status || 'active',
+        }
+        loadClassNudges()
+        loadRubrics()
+      } catch (e) {
+        if (seq !== classDetailSeq || page.value !== 'classes') return
+        classDetail.value = null
+        throw e
       }
     }
 
@@ -2009,6 +2134,51 @@ const App = {
       } finally { loading.value = false }
     }
 
+    async function importClassMembersFromFile(event) {
+      const file = event?.target?.files?.[0]
+      if (!file || !selectedClassId.value) return
+      const fd = new FormData()
+      fd.append('file', file)
+      loading.value = true
+      try {
+        const { data } = await http.post(`/admin/classes/${selectedClassId.value}/import`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        const msg = `已加入 ${data.added_count || 0} 人` +
+          (data.not_found?.length ? `，${data.not_found.length} 人未注册` : '')
+        ElementPlus.ElMessage.success(msg)
+        await loadClassDetail()
+        await loadUsers()
+      } catch (e) {
+        ElementPlus.ElMessage.error(e?.response?.data?.error || '导入失败')
+      } finally {
+        loading.value = false
+        if (event?.target) event.target.value = ''
+      }
+    }
+
+    const createTeacherForm = ref({ name: '', account: '', password: '' })
+    const createTeacherVisible = ref(false)
+
+    async function submitCreateTeacher() {
+      const { name, account, password } = createTeacherForm.value
+      if (!name.trim() || !account.trim() || !password) {
+        return ElementPlus.ElMessage.warning('请填写教师姓名、账号与初始密码')
+      }
+      loading.value = true
+      try {
+        await http.post('/admin/users', { name, account: account.trim(), password, role: 'admin' })
+        ElementPlus.ElMessage.success('教师账号已创建')
+        createTeacherVisible.value = false
+        createTeacherForm.value = { name: '', account: '', password: '' }
+        await loadUsers()
+      } catch (e) {
+        ElementPlus.ElMessage.error(e?.response?.data?.error || '创建失败')
+      } finally {
+        loading.value = false
+      }
+    }
+
     async function removeClassMember(row) {
       if (!selectedClassId.value || !row?.user?.id) return
       try {
@@ -2050,17 +2220,40 @@ const App = {
         activityDetail.value = null
         return
       }
+      const seq = ++activityDetailSeq
       selectedActivityId.value = id
-      const { data } = await http.get(`/admin/team-activities/${id}`)
-      activityDetail.value = data
-      opsGroupId.value = data.groups?.[0]?.id || opsGroupId.value
-      await Promise.all([loadOverview(), loadCommandDashboard(), loadActivityMilestones()])
-      if (opsGroupId.value) await loadTeamDash(opsGroupId.value)
+      try {
+        const { data } = await http.get(`/admin/team-activities/${id}`)
+        if (seq !== activityDetailSeq) return
+        activityDetail.value = data
+        opsGroupId.value = data.groups?.[0]?.id || opsGroupId.value
+        if (page.value === 'workbench') {
+          await Promise.all([loadCommandDashboard(), loadActivityMilestones()])
+          if (seq !== activityDetailSeq || page.value !== 'workbench') return
+          if (opsGroupId.value) await loadTeamDash(opsGroupId.value)
+        }
+      } catch (e) {
+        if (seq !== activityDetailSeq) return
+        if (page.value === 'workbench') activityDetail.value = null
+        throw e
+      }
     }
 
     async function openActivityDetail(id) {
       await loadActivityDetail(id)
       activityDetailDrawerVisible.value = true
+    }
+
+    async function openActivityFromClass(row) {
+      if (!row?.id) return
+      selectedActivityId.value = row.id
+      await navigateToPage('workbench')
+    }
+
+    async function openClassFromSummary(c) {
+      if (!c?.class_id) return
+      selectedClassId.value = c.class_id
+      await navigateToPage('classes')
     }
 
     async function createActivity() {
@@ -2208,28 +2401,124 @@ const App = {
       }))
     }
 
+    async function loadWorkbenchBootstrap() {
+      await loadPageData('workbench')
+    }
+
     async function refreshAll() {
-      loading.value = true
+      const seq = ++pageLoadSeq
+      pageLoading.value = true
       try {
-        await Promise.all([loadCommandDashboard(), loadOverview(), loadUsers(), loadConfig(), loadActivities(), loadClasses(), loadEntitlements(), loadTaskTemplateMarket()])
+        await Promise.all([
+          loadOverview(),
+          loadActivities(),
+          loadClasses(),
+          loadEntitlements(),
+          loadUsers(true),
+          loadConfig(),
+          loadTaskTemplateMarket(),
+        ])
+        if (seq !== pageLoadSeq) return
+        const current = page.value
+        if (current === 'workbench') {
+          await loadCommandDashboard(true)
+          if (selectedActivityId.value) await loadActivityDetail(selectedActivityId.value)
+        } else if (current === 'classes' && (selectedClassId.value || classes.value[0]?.id)) {
+          await loadClassDetail(selectedClassId.value || classes.value[0].id)
+        }
       } finally {
-        loading.value = false
+        if (seq === pageLoadSeq) {
+          pageLoading.value = false
+          dismissBootScreen()
+        }
       }
-      window.setTimeout(() => {
-        if (page.value === 'workbench' && selectedActivityId.value && !activityDetail.value) loadActivityDetail(selectedActivityId.value)
-        if (page.value === 'classes' && selectedClassId.value && !classDetail.value) loadClassDetail(selectedClassId.value)
-      }, 80)
+    }
+
+    function dismissBootScreen() {
+      globalThis.TeamMindI18n?.hideBootScreen?.()
+    }
+
+    function isActivePageLoad(seq, expectedPage) {
+      return seq === pageLoadSeq && page.value === expectedPage
+    }
+
+    async function loadPageData(p) {
+      const seq = ++pageLoadSeq
+      const target = p
+      pageLoading.value = true
+      adminDbg('loadPageData:start', { seq, target, page: page.value })
+      try {
+        if (target === 'workbench') {
+          await Promise.all([loadOverview(), loadActivities(), loadClasses(), loadEntitlements()])
+          if (!isActivePageLoad(seq, 'workbench')) return
+          await loadCommandDashboard(true)
+          if (!isActivePageLoad(seq, 'workbench')) return
+          if (selectedActivityId.value) {
+            await loadActivityDetail(selectedActivityId.value)
+          } else {
+            activityDetail.value = null
+          }
+        } else if (target === 'classes') {
+          await loadGroupingTemplates()
+          await loadClasses()
+          if (!isActivePageLoad(seq, 'classes')) return
+          const classId = selectedClassId.value || classes.value[0]?.id || null
+          if (classId) {
+            await loadClassDetail(classId)
+          } else {
+            classDetail.value = null
+          }
+        } else if (target === 'users') {
+          await loadUsers(true)
+        } else if (target === 'community') {
+          await loadCommunityPosts()
+        } else if (target === 'export') {
+          await loadOverview()
+        } else if (target === 'billing') {
+          await Promise.all([loadBillingPlans(), loadBillingOrders(), loadBillingUsage(), loadEntitlements()])
+        } else if (target === 'settings') {
+          await loadConfig()
+        } else if (target === 'account') {
+          await loadMe()
+        }
+        adminDbg('loadPageData:ok', { seq, target, page: page.value })
+      } catch (e) {
+        if (!isActivePageLoad(seq, target)) return
+        adminDbg('loadPageData:error', { seq, target, err: e })
+        console.error('[TeamMind Admin] loadPageData failed', target, e)
+        if (!e?.response) {
+          ElementPlus.ElMessage.error('无法连接课堂服务，请确认已运行 python main.py 后刷新页面')
+        }
+      } finally {
+        if (seq === pageLoadSeq) {
+          pageLoading.value = false
+          dismissBootScreen()
+          adminDbg('loadPageData:done', { seq, page: page.value })
+        }
+      }
     }
 
     async function opsCreateGroups() {
-      const ids = profileReady.value.map((r) => r.user?.id).filter(Boolean)
+      let ids = []
+      if (selectedClassId.value) {
+        ids = classMembers.value
+          .filter((m) => m.profile && m.user?.id && !m.user?.is_demo)
+          .map((m) => m.user.id)
+      } else {
+        ids = profileReady.value.map((r) => r.user?.id).filter(Boolean)
+      }
       if (ids.length < opsGroupSize.value) {
-        ElementPlus.ElMessage.warning(`已录入画像的学员仅 ${ids.length} 人，少于每组 ${opsGroupSize.value} 人，无法分组`)
+        const hint = selectedClassId.value
+          ? '当前班级内已录入画像的真实学员'
+          : '已录入画像的真实学员'
+        ElementPlus.ElMessage.warning(`${hint}仅 ${ids.length} 人，少于每组 ${opsGroupSize.value} 人，无法分组`)
         return
       }
       try {
         await adminConfirm(
-          '将对已录入画像的学员执行 AI 分组。注意：不会自动删除已有小组，重复操作会产生多批小组。确定继续？',
+          selectedClassId.value
+            ? '将对当前班级内已录入画像的学员执行 AI 分组。确定继续？'
+            : '将对已录入画像的学员执行 AI 分组。建议先在「班级管理」选中班级再分组。确定继续？',
           '智能分组'
         )
       } catch {
@@ -2237,11 +2526,14 @@ const App = {
       }
       loading.value = true
       try {
-        const { data } = await http.post('/admin/ops/create-groups', {
+        const payload = {
           user_ids: ids,
           group_size: opsGroupSize.value,
           config: { mode: 'heterogeneous' },
-        })
+        }
+        if (selectedClassId.value) payload.class_id = selectedClassId.value
+        if (selectedActivityId.value) payload.activity_id = selectedActivityId.value
+        const { data } = await http.post('/admin/ops/create-groups', payload)
         ElementPlus.ElMessage.success(`已创建 ${data.groups?.length || 0} 个小组`)
         await refreshAll()
         workbenchStep.value = 3
@@ -2389,28 +2681,31 @@ const App = {
       document.title = current ? `${base} · ${current.label}` : base
     }
 
-    function go(p, pushHash = true) {
+    async function navigateToPage(p, { pushHash = true, reload = true } = {}) {
       if (!PAGE_KEYS.includes(p)) p = 'workbench'
-      if (!pushHash && page.value === p) return
+      adminDbg('navigateToPage', { p, pushHash, reload, from: page.value })
       page.value = p
-      if (pushHash && window.location.hash !== `#${p}`) {
-        window.location.hash = p
+      if (pushHash) {
+        const nextHash = `#${p}`
+        if (window.location.hash !== nextHash) {
+          window.location.hash = p
+        }
       }
       updateDocumentTitle()
       stopAutoRefresh()
-      if (p === 'workbench') {
-        refreshAll()
+      if (reload) {
+        await loadPageData(p)
       }
-      if (p === 'classes') {
-        loadGroupingTemplates()
-        loadClasses().then(() => selectedClassId.value && loadClassDetail(selectedClassId.value))
-      }
-      if (p === 'users') loadUsers()
-      if (p === 'community') loadCommunityPosts()
-      if (p === 'export') loadOverview()
-      if (p === 'billing') Promise.all([loadBillingPlans(), loadBillingOrders(), loadBillingUsage(), loadEntitlements()])
-      if (p === 'settings') loadConfig()
-      if (p === 'account') loadMe()
+    }
+
+    function go(p) {
+      navChain = navChain
+        .then(() => navigateToPage(p, { pushHash: true, reload: true }))
+        .catch((err) => {
+          console.error('[TeamMind Admin] navigation failed', p, err)
+          pageLoading.value = false
+        })
+      return navChain
     }
 
     function setLanguage(lang) {
@@ -2454,30 +2749,51 @@ const App = {
     }
 
     function onHashChange() {
-      const key = window.location.hash.replace('#', '')
-      if (PAGE_KEYS.includes(key)) go(key, false)
+      const key = (window.location.hash || '').replace(/^#/, '')
+      if (!PAGE_KEYS.includes(key)) return
+      if (page.value === key) return
+      navigateToPage(key, { pushHash: false, reload: true })
     }
 
-    onMounted(() => {
+    onMounted(async () => {
       setLanguage(language.value)
       globalThis.teammindApplyBootInline?.()
       globalThis.TeamMindI18n?.applyBootScreenI18n?.('teacher')
-      globalThis.TeamMindI18n?.hideBootScreen?.()
       window.addEventListener('teammind-admin-auth-expired', handleAuthExpired)
       window.addEventListener('teammind-paywall', handlePaywallEvent)
-      if (isLoggedIn.value) {
-        validateSession().then((ok) => {
+      if (ADMIN_DEBUG) {
+        window.__teammindAdminDbg = () => ({
+          page: page.value,
+          pageLoading: pageLoading.value,
+          loading: loading.value,
+          pageLoadSeq,
+          selectedClassId: selectedClassId.value,
+          selectedActivityId: selectedActivityId.value,
+          hasClassDetail: !!classDetail.value,
+          hasActivityDetail: !!activityDetail.value,
+        })
+        adminDbg('debug enabled: __teammindAdminDbg() in console')
+      }
+      const bootFailsafe = window.setTimeout(() => {
+        dismissBootScreen()
+        const root = document.getElementById('app')
+        if (root && !root.innerHTML.trim()) {
+          TeamMindAdminRuntime.showBootError('教师端脚本加载或初始化超时。请强制刷新（Ctrl+F5），并确认已运行 python main.py。')
+        }
+      }, 18000)
+      try {
+        token.value = normalizeStoredAdminToken()
+        if (isLoggedIn.value) {
+          const ok = await validateSession()
           if (!ok) return
           const key = window.location.hash.replace('#', '')
           page.value = PAGE_KEYS.includes(key) ? key : 'workbench'
           window.addEventListener('hashchange', onHashChange)
-          refreshAll()
-          if (page.value === 'classes') loadClasses()
-          if (page.value === 'users') loadUsers()
-          if (page.value === 'community') loadCommunityPosts()
-          if (page.value === 'settings') loadConfig()
-          if (page.value === 'account') loadMe()
-        })
+          await loadPageData(page.value)
+        }
+      } finally {
+        window.clearTimeout(bootFailsafe)
+        dismissBootScreen()
       }
     })
 
@@ -2499,7 +2815,10 @@ const App = {
       workbenchStep,
       user,
       loading,
+      pageLoading,
       loginForm,
+      loginNotice,
+      authTab,
       overview,
       users,
       commandDash,
@@ -2598,12 +2917,18 @@ const App = {
       go,
       setStep,
       refreshAll,
+      loadWorkbenchBootstrap,
+      loadPageData,
       loadClasses,
       loadClassDetail,
       createClass,
       saveClass,
       archiveClass,
       addClassMembers,
+      importClassMembersFromFile,
+      createTeacherForm,
+      createTeacherVisible,
+      submitCreateTeacher,
       removeClassMember,
       reviewClassRequest,
       refreshClassAdvice,
@@ -2651,6 +2976,8 @@ const App = {
       loadActivities,
       loadActivityDetail,
       openActivityDetail,
+      openActivityFromClass,
+      openClassFromSummary,
       createActivity,
       publishActivityCollect,
       autoGroupActivity,
@@ -2724,12 +3051,19 @@ const App = {
           </el-select>
           <div class="card-title">{{ t('loginTitle') }}</div>
           <p class="card-sub">{{ t('loginSub') }}</p>
-          <el-form label-position="top" @submit.prevent="doLogin">
-            <el-form-item :label="t('account')"><el-input v-model="loginForm.account" size="large" /></el-form-item>
-            <el-form-item :label="t('password')"><el-input v-model="loginForm.password" type="password" show-password size="large" @keyup.enter="doLogin" /></el-form-item>
-            <el-button type="primary" :loading="loading" @click="doLogin" size="large" style="width:100%">{{ t('loginButton') }}</el-button>
-          </el-form>
-          <div class="demo-hint">{{ t('demoHint') }}</div>
+          <el-alert v-if="loginNotice" :title="loginNotice" type="warning" show-icon :closable="false" style="margin-bottom:14px" />
+          <p class="card-sub" style="margin-top:0;color:#64748b;font-size:13px">演示环境教师账号：<strong>admin</strong> / 密码 <strong>admin123</strong>（需先运行 <code>python main.py</code>）。学员账号无法登录本页。</p>
+          <el-button link type="primary" style="margin-bottom:10px" @click="logout('已清除本地登录，请重新输入账号密码。')">清除本地登录缓存并重试</el-button>
+          <el-tabs v-model="authTab" stretch>
+            <el-tab-pane :label="t('loginButton')" name="login">
+              <el-form label-position="top" @submit.prevent="doLogin">
+                <el-form-item :label="t('account')"><el-input v-model="loginForm.account" size="large" :placeholder="t('accountPlaceholder')" /></el-form-item>
+                <el-form-item :label="t('password')"><el-input v-model="loginForm.password" type="password" show-password size="large" @keyup.enter="doLogin" /></el-form-item>
+                <el-button type="primary" :loading="loading" @click="doLogin" size="large" style="width:100%">{{ t('loginButton') }}</el-button>
+                <p class="hint" style="margin-top:12px;text-align:center;font-size:13px">{{ t('forgotPasswordHint') }}</p>
+              </el-form>
+            </el-tab-pane>
+          </el-tabs>
           <a class="login-switch-link" :href="STUDENT_PORTAL_URL">🎓 {{ t('switchToStudent') }}</a>
         </div>
       </div>
@@ -2743,7 +3077,7 @@ const App = {
           <div class="logo-sub">{{ t('workspaceName') }}</div>
         </div>
         <nav class="nav-list">
-          <a v-for="n in navItems" :key="n.key" class="nav-item" :class="{active: page===n.key}" @click="go(n.key)">
+          <a v-for="n in navItems" :key="n.key" href="javascript:void(0)" class="nav-item" :class="{active: page===n.key}" @click.prevent="go(n.key)">
             <span class="nav-icon">{{ n.icon }}</span>
             <span>{{ n.label }}</span>
           </a>
@@ -2793,7 +3127,8 @@ const App = {
         </header>
 
         <main class="content">
-          <template v-if="page==='classes'">
+          <div v-if="pageLoading" class="page-loading-banner">{{ t('加载中...') }}</div>
+          <div v-show="page==='classes'" class="page-panel">
             <div class="activity-hero">
               <div>
                 <p class="eyebrow">Class Management</p>
@@ -2812,7 +3147,7 @@ const App = {
               <div class="card class-list-card">
                 <div class="card-header"><h3>{{ t('班级列表') }}</h3><el-button @click="loadClasses">{{ t('刷新') }}</el-button></div>
                 <div v-if="!classes.length" class="empty-note">{{ t('暂无班级，请先创建。') }}</div>
-                <div v-for="c in classes" :key="c.id" class="activity-row" :class="{active: selectedClassId===c.id}" @click="loadClassDetail(c.id)">
+                <div v-for="c in classes" :key="c.id" class="activity-row" :class="{active: selectedClassId===c.id}" @click="loadClassDetail(c.id)" role="button" tabindex="0" @keyup.enter="loadClassDetail(c.id)">
                   <div>
                     <strong>{{ displayDemoText(c.name) }}</strong>
                     <p>{{ displayDemoText(c.course_name || c.major) || (t('未设置课程') + ' ·') }} {{ formatStatus(c.status) }}</p>
@@ -2835,14 +3170,20 @@ const App = {
                 <el-tabs v-model="classTab">
                   <el-tab-pane :label="t('成员')" name="members">
                     <div class="class-tools">
-                      <el-select v-model="classMemberForm.user_ids" multiple filterable :placeholder="t('选择要拉入的学生')" style="width:100%">
-                        <el-option v-for="row in classAvailableUsers" :key="row.user.id" :label="row.user.name + ' / ' + row.user.account" :value="row.user.id" />
+                      <el-select v-model="classMemberForm.user_ids" multiple filterable :placeholder="t('选择要拉入的学生（仅真实注册用户）')" style="width:100%">
+                        <el-option v-for="row in classAvailableUsers" :key="row.user.id" :label="(row.user.name + ' / ' + (row.user.email || row.user.account))" :value="row.user.id" />
                       </el-select>
                       <el-button type="primary" @click="addClassMembers">{{ t('拉入同学') }}</el-button>
+                      <label class="el-button el-button--default" style="cursor:pointer;margin-left:8px">
+                        {{ t('CSV/Excel 导入') }}
+                        <input type="file" accept=".csv,.xlsx,.xls" style="display:none" @change="importClassMembersFromFile" />
+                      </label>
+                      <p class="hint" style="margin-top:8px">{{ t('导入列：姓名、账号/学号、邮箱。未注册邮箱会列入未找到名单。') }}</p>
                     </div>
                     <el-table :data="classMembers" stripe :empty-text="t('当前班级暂无学生')">
                       <el-table-column :label="t('姓名')"><template #default="{row}">{{ row.user?.name }}</template></el-table-column>
                       <el-table-column :label="t('账号')"><template #default="{row}">{{ row.user?.account }}</template></el-table-column>
+                      <el-table-column :label="t('邮箱')"><template #default="{row}">{{ row.user?.email || '—' }}</template></el-table-column>
                       <el-table-column :label="t('画像')"><template #default="{row}"><el-tag :type="row.profile?'success':'info'" size="small">{{ row.profile ? t('已录入') : t('未录入') }}</el-tag></template></el-table-column>
                       <el-table-column :label="t('角色方向')"><template #default="{row}">{{ translateProfileText(row.profile?.pref_role) || '—' }}</template></el-table-column>
                       <el-table-column :label="t('操作')" width="110"><template #default="{row}"><el-button size="small" type="danger" plain @click="removeClassMember(row)">{{ t('剔除') }}</el-button></template></el-table-column>
@@ -2858,7 +3199,7 @@ const App = {
                       <el-table-column :label="t('参与/小组')" width="130"><template #default="{row}">{{ row.participant_count || 0 }} {{ t('人') }} / {{ row.group_count || row.team_count || 0 }} {{ t('组') }}</template></el-table-column>
                       <el-table-column :label="t('操作')" width="130">
                         <template #default="{row}">
-                          <el-button size="small" type="primary" plain @click="go('workbench'); loadActivityDetail(row.id)">{{ t('查看活动') }}</el-button>
+                          <el-button size="small" type="primary" plain @click="openActivityFromClass(row)">{{ t('查看活动') }}</el-button>
                         </template>
                       </el-table-column>
                     </el-table>
@@ -2883,7 +3224,7 @@ const App = {
                     <div v-if="!classHealth" class="empty-state-box">
                       <p>{{ t('暂无健康度数据') }}</p>
                       <el-button type="primary" plain @click="loadClassHealth">{{ t('刷新') }}</el-button>
-                      <el-button @click="page='workbench'">{{ t('创建活动') }}</el-button>
+                      <el-button @click="go('workbench')">{{ t('创建活动') }}</el-button>
                     </div>
                     <div v-if="classHealth" class="teacher-overview-grid">
                       <div class="teacher-metric"><span>{{ t('健康分') }}</span><strong>{{ classHealth.health_score }}</strong></div>
@@ -2961,7 +3302,7 @@ const App = {
                       </div>
                       <el-table v-if="selectedCompareKey" :data="(groupingCompare.find(x=>x.key===selectedCompareKey)||{}).groups||[]" size="small" stripe>
                         <el-table-column prop="group_name" :label="t('小组')" width="90" />
-                        <el-table-column :label="t('成员')" min-width="200"><template #default="{row}">{{ (row.members||[]).map(m=>m.name+(m.major?`(${m.major})`:'')).join('、') }}</template></el-table-column>
+                        <el-table-column :label="t('成员')" min-width="200"><template #default="{row}">{{ (row.members||[]).map(m=>m.name+(m.major?'('+m.major+')':'')).join('、') }}</template></el-table-column>
                         <el-table-column prop="avg_skill" :label="t('技能')" width="70" />
                         <el-table-column :label="t('说明')" min-width="200"><template #default="{row}"><span class="explain-text">{{ row.complement_note }}</span></template></el-table-column>
                       </el-table>
@@ -3033,9 +3374,9 @@ const App = {
                 </el-tabs>
               </div>
             </div>
-          </template>
+          </div>
 
-          <template v-if="page==='workbench'">
+          <div v-show="page==='workbench'" class="page-panel">
             <div class="activity-hero">
               <div>
                 <p class="eyebrow">{{ t('TeamActivityCenter') }}</p>
@@ -3050,8 +3391,8 @@ const App = {
               </div>
             </div>
             <div v-if="commandDash.class_summaries?.length" class="class-health-strip">
-              <div v-for="c in commandDash.class_summaries" :key="c.class_id" class="class-health-chip" @click="selectedClassId=c.class_id; page='classes'; loadClassDetail(c.class_id)">
-                <strong>{{ c.name }}</strong>
+              <div v-for="c in commandDash.class_summaries" :key="c.class_id" class="class-health-chip" @click="openClassFromSummary(c)">
+                <strong>{{ displayDemoText(c.name) }}</strong>
                 <span>{{ t('健康分') }} {{ c.health_score }}</span>
                 <span v-if="c.nudge_total">{{ t('待催办') }} {{ c.nudge_total }}</span>
               </div>
@@ -3334,19 +3675,22 @@ const App = {
                 </div>
               </div>
             </el-drawer>
-          </template>
+          </div>
 
-          <template v-if="page==='users'">
+          <div v-show="page==='users'" class="page-panel">
             <div class="card users-card">
               <div class="card-header">
                 <div>
                   <h3>{{ t('学员画像全景') }}</h3>
                   <p class="hint">{{ t('教师端展示完整评分、来源拆解、标签证据与分组参考；学生端不展示分数。') }}</p>
                 </div>
-                <el-button type="primary" plain @click="rulesVisible=true">{{ t('查看计算规则') }}</el-button>
+                <div style="display:flex;gap:8px">
+                  <el-button type="primary" plain @click="createTeacherVisible=true">{{ t('创建教师账号') }}</el-button>
+                  <el-button type="primary" plain @click="rulesVisible=true">{{ t('查看计算规则') }}</el-button>
+                </div>
               </div>
               <div class="teacher-overview-grid">
-                <div class="teacher-metric"><span>{{ t('学员总数') }}</span><strong>{{ studentUsers.length }}</strong></div>
+                <div class="teacher-metric"><span>{{ t('真实学员') }}</span><strong>{{ studentUsers.length }}</strong></div>
                 <div class="teacher-metric"><span>{{ t('画像已录入') }}</span><strong>{{ profileReady.length }}</strong></div>
                 <div class="teacher-metric"><span>{{ t('画像完成率') }}</span><strong>{{ profileRate }}%</strong></div>
               </div>
@@ -3354,7 +3698,7 @@ const App = {
                 <div class="filter-field">
                   <span>{{ t('活动筛选') }}</span>
                   <el-select v-model="selectedActivityId" clearable :placeholder="t('全部组队活动')" @change="loadActivityDetail">
-                    <el-option v-for="a in activities" :key="a.id" :label="a.title" :value="a.id" />
+                    <el-option v-for="a in activities" :key="a.id + '-' + language" :label="activityDisplayTitle(a)" :value="a.id" />
                   </el-select>
                 </div>
                 <div class="filter-field grow">
@@ -3421,9 +3765,9 @@ const App = {
                 </el-table-column>
               </el-table>
             </div>
-          </template>
+          </div>
 
-          <template v-if="page==='community'">
+          <div v-show="page==='community'" class="page-panel">
             <div class="card">
               <div class="card-header"><h3>{{ t('学习社区帖子') }}</h3><el-button @click="loadCommunityPosts">{{ t('刷新') }}</el-button></div>
               <el-table :data="communityPosts" stripe>
@@ -3441,9 +3785,9 @@ const App = {
                 </el-table-column>
               </el-table>
             </div>
-          </template>
+          </div>
 
-          <template v-if="page==='billing'">
+          <div v-show="page==='billing'" class="page-panel">
             <div class="card">
               <div class="card-header">
                 <div>
@@ -3495,9 +3839,9 @@ const App = {
                 <el-table-column prop="points" :label="t('点数')" width="100" />
               </el-table>
             </div>
-          </template>
+          </div>
 
-          <template v-if="page==='export'">
+          <div v-show="page==='export'" class="page-panel">
             <div class="card">
               <div class="card-header">
                 <div>
@@ -3517,9 +3861,9 @@ const App = {
                 <div class="export-tile" @click="exportSuperGroupReport"><div class="tile-icon">📑</div><div class="tile-label">{{ t('超级分组报告') }}</div></div>
               </div>
             </div>
-          </template>
+          </div>
 
-          <template v-if="page==='settings'">
+          <div v-show="page==='settings'" class="page-panel">
             <div class="card">
               <div class="card-header">
                 <div>
@@ -3575,9 +3919,9 @@ const App = {
                 </div>
               </div>
             </div>
-          </template>
+          </div>
 
-          <template v-if="page==='account'">
+          <div v-show="page==='account'" class="page-panel">
             <div class="account-hero">
               <div class="account-avatar-lg">
                 <img v-if="userAvatar(user)" :src="userAvatar(user)" :alt="t('头像')" />
@@ -3624,7 +3968,7 @@ const App = {
                 </el-form>
               </div>
             </div>
-          </template>
+          </div>
         </main>
       </div>
 
@@ -3747,6 +4091,18 @@ const App = {
         </template>
       </el-dialog>
 
+      <el-dialog v-model="createTeacherVisible" :title="t('创建教师账号')" width="440px">
+        <el-form label-position="top">
+          <el-form-item :label="t('姓名')"><el-input v-model="createTeacherForm.name" /></el-form-item>
+          <el-form-item :label="t('teacherAccount')"><el-input v-model="createTeacherForm.account" :placeholder="t('accountPlaceholder')" /></el-form-item>
+          <el-form-item :label="t('初始密码')"><el-input v-model="createTeacherForm.password" type="password" show-password :placeholder="t('至少8位，含字母与数字')" /></el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="createTeacherVisible=false">{{ t('取消') }}</el-button>
+          <el-button type="primary" :loading="loading" @click="submitCreateTeacher">{{ t('创建') }}</el-button>
+        </template>
+      </el-dialog>
+
       <el-dialog v-model="rulesVisible" :title="t('计算规则说明')" width="760px">
         <div class="rule-flow">
           <div class="rule-card"><strong>{{ t('1. 信息整理') }}</strong><p>{{ t('主动标签、自由描述、社区互动、聊天和任务表现会作为分组参考。') }}</p></div>
@@ -3780,8 +4136,12 @@ function bootApp() {
   if (!root || typeof Vue === 'undefined') return
   try {
     const app = createApp(App)
+    app.config.errorHandler = (err, _instance, info) => {
+      console.error('[TeamMind Admin] Vue error:', err, info)
+    }
     if (typeof ElementPlus !== 'undefined') app.use(ElementPlus)
     app.mount('#app')
+    if (ADMIN_DEBUG) console.info('[TeamMind Admin] debug on — add ?admin_debug=1 or localStorage.teammind_admin_debug=1')
   } catch (e) {
     root.innerHTML = '<p>初始化失败: ' + e.message + '</p>'
   }

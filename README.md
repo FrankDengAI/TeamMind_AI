@@ -263,6 +263,8 @@ python main.py --init
 
 ## 演示账号 / Demo Accounts
 
+> **正式上线 / Production**：学员请使用 **邮箱验证码注册**（`/student/`）；教师账号由 `python scripts/bootstrap_production.py` 创建。生产环境请设置 `TEAMMIND_DISABLE_DEMO_SEED=1`、`TEAMMIND_ALLOW_LEGACY_REGISTER=0`，并配置 SMTP。详见 [`docs/DEPLOY.md`](docs/DEPLOY.md)。
+
 <table>
   <tr>
     <th>角色</th>

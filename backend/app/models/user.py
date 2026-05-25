@@ -12,8 +12,14 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(64), nullable=False)
     account = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(128), unique=True, nullable=True, index=True)
+    email_verified_at = db.Column(db.DateTime)
     password_hash = db.Column(db.String(128), nullable=False)
     role = db.Column(db.String(16), default="user", nullable=False)  # user | admin
+    is_demo = db.Column(db.Boolean, default=False, nullable=False)
+    status = db.Column(db.String(16), default="active", nullable=False)  # active | pending | disabled
+    token_version = db.Column(db.Integer, default=0, nullable=False)
+    last_login_at = db.Column(db.DateTime)
     avatar_url = db.Column(db.String(512))
     bio = db.Column(db.String(240))
     headline = db.Column(db.String(120))
@@ -34,6 +40,10 @@ class User(db.Model):
             "id": self.id,
             "name": self.name,
             "account": self.account,
+            "email": self.email,
+            "email_verified": bool(self.email_verified_at),
+            "is_demo": bool(self.is_demo),
+            "status": self.status,
             "role": self.role,
             "avatar_url": self.avatar_url,
             "bio": self.bio,

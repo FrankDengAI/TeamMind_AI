@@ -4,9 +4,9 @@ import json
 from flask import Blueprint, jsonify, request
 
 from app import db
-from app.middleware.auth import admin_required, get_request_user_id, write_audit
+from app.middleware.auth import admin_required, bump_token_version, get_request_user_id, write_audit
 from app.middleware.entitlement import paywall_response
-from app.models import AiUsageLog, BehaviorLog, GroupInfo, PaymentOrder, Task, TeamActivity, User, UserProfile, UserSubscription
+from app.models import AiUsageLog, Classroom, BehaviorLog, GroupInfo, PaymentOrder, Task, TeamActivity, User, UserProfile, UserSubscription
 from app.services.billing_service import mark_order_paid, pending_review_count, refresh_order_lifecycle
 from app.services.entitlement_service import PaywallError, activate_subscription, get_entitlements
 from app.services.task_ai_helpers import enrich_adjust_with_ai, enrich_assignments_with_ai
@@ -16,7 +16,9 @@ from app.services.algorithms.task_assign import TaskAssignAlgorithm
 from app.services.analytics_service import build_group_dashboard, build_platform_dashboard
 from app.services.group_config import load_group_config, set_member_roles
 from app.services.role_assign import assign_roles_for_group
+from app.services.class_membership import filter_user_ids, restrict_to_class_members
 from app.services.task_service import create_assigned_tasks
+from app.services.teacher_scope import admin_owns_class, teacher_classroom_query
 
 bp = Blueprint("admin", __name__)
 group_algo = GroupingAlgorithm()
@@ -24,15 +26,105 @@ assigner = TaskAssignAlgorithm()
 adjuster = TaskAdjustAlgorithm()
 
 
-@bp.route("/users", methods=["GET"])
+@bp.route("/users", methods=["GET", "POST"])
 @admin_required
-def list_users():
-    users = User.query.all()
+def users_collection():
+    if request.method == "POST":
+        return _create_user()
+    return _list_users()
+
+
+def _list_users():
+    exclude_demo = request.args.get("exclude_demo", "1") in ("1", "true", "yes")
+    include_demo = request.args.get("include_demo", "0") in ("1", "true", "yes")
+    include_profile = request.args.get("include_profile", "0") in ("1", "true", "yes")
+    limit = min(int(request.args.get("limit", 200) or 200), 500)
+    offset = max(int(request.args.get("offset", 0) or 0), 0)
+    q = User.query
+    if exclude_demo and not include_demo:
+        q = q.filter((User.is_demo == False) | (User.is_demo.is_(None)))  # noqa: E712
+    total = q.count()
+    users = q.order_by(User.id.asc()).offset(offset).limit(limit).all()
+    user_ids = [u.id for u in users]
+    profiles = {}
+    if user_ids:
+        for prof in UserProfile.query.filter(UserProfile.user_id.in_(user_ids)).order_by(
+            UserProfile.user_id.asc(), UserProfile.create_time.desc()
+        ).all():
+            if prof.user_id not in profiles:
+                profiles[prof.user_id] = prof
     data = []
     for u in users:
-        prof = UserProfile.query.filter_by(user_id=u.id).order_by(UserProfile.create_time.desc()).first()
-        data.append({"user": u.to_dict(), "has_profile": prof is not None, "profile": prof.to_dict() if prof else None})
-    return jsonify(data)
+        prof = profiles.get(u.id)
+        data.append(
+            {
+                "user": u.to_dict(),
+                "has_profile": prof is not None,
+                "profile": prof.to_dict() if prof and include_profile else None,
+            }
+        )
+    return jsonify({"items": data, "total": total, "limit": limit, "offset": offset})
+
+
+def _create_user():
+    import bcrypt
+
+    from app.services.auth_verification import validate_account_name, validate_password_strength
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    account = (data.get("account") or data.get("email") or "").strip()
+    password = data.get("password") or ""
+    role = (data.get("role") or "user").strip()
+    if role not in {"user", "admin"}:
+        return jsonify({"error": "角色无效"}), 400
+    if not name:
+        return jsonify({"error": "姓名不能为空"}), 400
+    acc_err = validate_account_name(account)
+    if acc_err:
+        return jsonify({"error": acc_err}), 400
+    pw_err = validate_password_strength(password)
+    if pw_err:
+        return jsonify({"error": pw_err}), 400
+    if User.query.filter_by(account=account).first():
+        return jsonify({"error": "账号已存在"}), 400
+    user = User(
+        name=name,
+        account=account,
+        password_hash=bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8"),
+        role=role,
+        is_demo=False,
+        status="active",
+    )
+    db.session.add(user)
+    db.session.commit()
+    write_audit("admin_create_user", "user", user.id, json.dumps({"role": role}, ensure_ascii=False))
+    return jsonify({"user": user.to_dict()}), 201
+
+
+@bp.route("/users/<int:user_id>", methods=["PATCH"])
+@admin_required
+def patch_user(user_id):
+    """禁用/启用用户或重置密码."""
+    import bcrypt
+
+    target = User.query.get_or_404(user_id)
+    data = request.get_json(silent=True) or {}
+    if data.get("status") in ("active", "disabled"):
+        target.status = data["status"]
+        bump_token_version(target)
+    new_password = (data.get("password") or "").strip()
+    if new_password:
+        from app.services.auth_verification import validate_password_strength
+
+        pw_err = validate_password_strength(new_password)
+        if pw_err:
+            return jsonify({"error": pw_err}), 400
+        target.password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        bump_token_version(target)
+    db.session.commit()
+    write_audit("admin_patch_user", "user", target.id, json.dumps({"status": target.status}, ensure_ascii=False))
+    return jsonify({"user": target.to_dict()})
 
 
 @bp.route("/config", methods=["GET", "PUT"])
@@ -90,12 +182,38 @@ def manage_templates():
     return jsonify(assigner.templates)
 
 
+def _teacher_activity_ids(uid: int) -> list[int]:
+    """当前教师可见班级下的组队活动 ID（GroupInfo 通过 activity_id 关联班级）."""
+    class_ids = [c.id for c in teacher_classroom_query(uid).all()]
+    if not class_ids:
+        return []
+    rows = TeamActivity.query.filter(TeamActivity.class_id.in_(class_ids)).with_entities(TeamActivity.id).all()
+    return [r[0] for r in rows]
+
+
+def _teacher_groups_query(uid: int, activity_id: int | None = None):
+    class_ids = [c.id for c in teacher_classroom_query(uid).all()]
+    groups_q = GroupInfo.query
+    act_ids = _teacher_activity_ids(uid)
+    if act_ids:
+        groups_q = groups_q.filter(GroupInfo.activity_id.in_(act_ids))
+    else:
+        groups_q = groups_q.filter(GroupInfo.id == -1)
+    if activity_id:
+        groups_q = groups_q.filter_by(activity_id=activity_id)
+    return groups_q, class_ids
+
+
 @bp.route("/overview", methods=["GET"])
 @admin_required
 def overview():
-    groups = GroupInfo.query.all()
-    users = User.query.filter_by(role="user").count()
-    profiles = UserProfile.query.count()
+    uid = get_request_user_id()
+    groups = _teacher_groups_query(uid)[0].all()
+    user_ids = set()
+    for g in groups:
+        user_ids.update(g.member_list())
+    users = len([u for u in User.query.filter(User.id.in_(user_ids)).all() if u.role == "user" and not u.is_demo]) if user_ids else 0
+    profiles = UserProfile.query.filter(UserProfile.user_id.in_(user_ids)).count() if user_ids else 0
     return jsonify(
         {
             "user_count": users,
@@ -106,54 +224,128 @@ def overview():
     )
 
 
+def _dashboard_class_summaries(uid: int, *, limit: int = 8, include_nudge: bool = False):
+    from app.services.classroom_insights import build_class_health, build_nudge_list
+
+    class_summaries = []
+    for cls in teacher_classroom_query(uid).order_by(Classroom.create_time.desc()).limit(limit).all():
+        try:
+            health = build_class_health(cls.id)
+            nudge_total = 0
+            if include_nudge:
+                nudge_total = build_nudge_list(cls.id).get("total", 0)
+            class_summaries.append(
+                {
+                    "class_id": cls.id,
+                    "name": cls.name,
+                    "health_score": health.get("health_score"),
+                    "health_level": health.get("health_level"),
+                    "nudge_total": nudge_total,
+                    "pending_confirmations": health.get("pending_confirmations", 0),
+                }
+            )
+        except Exception:
+            pass
+    return class_summaries
+
+
+@bp.route("/dashboard/summary", methods=["GET"])
+@admin_required
+def command_dashboard_summary():
+    """轻量指挥舱摘要（无逐组看板聚合）."""
+    from app.services.analytics_service import assess_task_risk
+    from datetime import datetime
+
+    uid = get_request_user_id()
+    activity_id = request.args.get("activity_id", type=int)
+    groups_q, _class_ids = _teacher_groups_query(uid, activity_id)
+    groups = groups_q.all()
+    group_ids = [g.id for g in groups]
+    tasks = Task.query.filter(Task.group_id.in_(group_ids)).all() if group_ids else []
+    member_ids = set()
+    for g in groups:
+        member_ids.update(g.member_list())
+    users = User.query.filter(User.id.in_(member_ids), User.role == "user").all() if member_ids else []
+    profile_count = UserProfile.query.filter(UserProfile.user_id.in_(member_ids)).count() if member_ids else 0
+    platform = build_platform_dashboard(groups, tasks, profile_count)
+    now = datetime.utcnow()
+    low_engagement = 0
+    for t in tasks:
+        td = t.to_dict()
+        risk = assess_task_risk(td, now)
+        if risk["level"] in ("critical", "warning") and int(td.get("progress") or 0) < 50:
+            low_engagement += 1
+    feedback_count = (
+        BehaviorLog.query.filter(
+            BehaviorLog.group_id.in_(group_ids),
+            BehaviorLog.event_type == "task_feedback",
+        ).count()
+        if group_ids
+        else 0
+    )
+    return jsonify(
+        {
+            "user_count": len(users),
+            "profile_count": profile_count,
+            "group_count": len(groups),
+            "task_count": len(tasks),
+            **platform,
+            "low_engagement_members": low_engagement,
+            "feedback_count": feedback_count,
+            "class_summaries": _dashboard_class_summaries(uid, limit=8, include_nudge=False),
+        }
+    )
+
+
+@bp.route("/dashboard/groups", methods=["GET"])
+@admin_required
+def command_dashboard_groups():
+    """分页返回各组看板详情（按需加载）."""
+    from app.api.board import _build_members_board
+
+    uid = get_request_user_id()
+    activity_id = request.args.get("activity_id", type=int)
+    limit = min(int(request.args.get("limit", 20) or 20), 50)
+    offset = max(int(request.args.get("offset", 0) or 0), 0)
+    groups_q, _ = _teacher_groups_query(uid, activity_id)
+    total = groups_q.count()
+    groups = groups_q.order_by(GroupInfo.create_time.desc()).offset(offset).limit(limit).all()
+    items = []
+    for g in groups:
+        members, task_dicts = _build_members_board(g)
+        logs = BehaviorLog.query.filter_by(group_id=g.id).all()
+        dash = build_group_dashboard(g.to_dict(), task_dicts, members, logs)
+        items.append(dash)
+    return jsonify({"items": items, "total": total, "limit": limit, "offset": offset})
+
+
 @bp.route("/dashboard", methods=["GET"])
 @admin_required
 def command_dashboard():
-    """指挥舱：全平台预警与项目组健康度."""
+    """指挥舱完整数据（兼容旧客户端；新前端请用 /dashboard/summary）."""
+    uid = get_request_user_id()
     activity_id = request.args.get("activity_id", type=int)
-    groups_q = GroupInfo.query
-    if activity_id:
-        groups_q = groups_q.filter_by(activity_id=activity_id)
+    groups_q, _ = _teacher_groups_query(uid, activity_id)
     groups = groups_q.all()
     group_ids = [g.id for g in groups]
-    tasks = Task.query.filter(Task.group_id.in_(group_ids)).all() if activity_id else Task.query.all()
-    users = User.query.filter_by(role="user").all()
-    profile_count = UserProfile.query.count()
+    tasks = Task.query.filter(Task.group_id.in_(group_ids)).all() if group_ids else []
+    member_ids = set()
+    for g in groups:
+        member_ids.update(g.member_list())
+    users = User.query.filter(User.id.in_(member_ids), User.role == "user").all() if member_ids else []
+    profile_count = UserProfile.query.filter(UserProfile.user_id.in_(member_ids)).count() if member_ids else 0
     platform = build_platform_dashboard(groups, tasks, profile_count)
     low_engagement = 0
     feedback_count = 0
     try:
         from app.api.board import _build_members_board
 
-        for g in groups:
+        for g in groups[:30]:
             members, task_dicts = _build_members_board(g)
             logs = BehaviorLog.query.filter_by(group_id=g.id).all()
             dash = build_group_dashboard(g.to_dict(), task_dicts, members, logs)
             low_engagement += dash["summary"].get("low_engagement_members", 0)
             feedback_count += dash["summary"].get("feedback_count", 0)
-    except Exception:
-        pass
-    class_summaries = []
-    try:
-        from app.models import Classroom
-        from app.services.classroom_insights import build_class_health, build_nudge_list
-
-        for cls in Classroom.query.order_by(Classroom.create_time.desc()).limit(8).all():
-            try:
-                health = build_class_health(cls.id)
-                nudges = build_nudge_list(cls.id)
-                class_summaries.append(
-                    {
-                        "class_id": cls.id,
-                        "name": cls.name,
-                        "health_score": health.get("health_score"),
-                        "health_level": health.get("health_level"),
-                        "nudge_total": nudges.get("total", 0),
-                        "pending_confirmations": health.get("pending_confirmations", 0),
-                    }
-                )
-            except Exception:
-                pass
     except Exception:
         pass
     return jsonify(
@@ -165,7 +357,7 @@ def command_dashboard():
             **platform,
             "low_engagement_members": low_engagement,
             "feedback_count": feedback_count,
-            "class_summaries": class_summaries,
+            "class_summaries": _dashboard_class_summaries(uid, limit=8, include_nudge=False),
         }
     )
 
@@ -192,9 +384,13 @@ def ops_create_groups():
     group_size = int(data.get("group_size", 4))
     mode = (data.get("config") or {}).get("mode", "heterogeneous")
 
+    class_id = data.get("class_id")
+    if class_id:
+        user_ids = restrict_to_class_members(user_ids, int(class_id))
+    else:
+        user_ids = filter_user_ids(user_ids)
     if not user_ids:
-        users = User.query.filter_by(role="user").all()
-        user_ids = [u.id for u in users]
+        return jsonify({"error": "有效画像人数不足，无法分组"}), 400
 
     profiles = []
     for uid in user_ids:

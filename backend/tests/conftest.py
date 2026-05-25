@@ -17,6 +17,9 @@ class TestConfig(Config):
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     TESTING = True
     DEEPSEEK_ENABLED = False
+    EMAIL_DEV_MODE = True
+    ALLOW_LEGACY_REGISTER = True
+    DISABLE_EMAIL_AUTH = True
 
 
 @pytest.fixture

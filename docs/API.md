@@ -8,9 +8,27 @@ Base URL: `http://localhost:5000/api`（开发时经 Vite 代理为 `/api`）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/auth/register` | 注册 `{name, account, password}` |
-| POST | `/auth/login` | 登录 `{account, password}` → `{token, user}` |
+| POST | `/auth/email/send-code` | 发送邮箱验证码 `{email, purpose: register\|reset_password}` |
+| POST | `/auth/register/email` | 邮箱注册 `{email, code, name, password}` → `{token, user}` |
+| POST | `/auth/register` | 旧版账号注册（生产可关闭 `TEAMMIND_ALLOW_LEGACY_REGISTER`） |
+| POST | `/auth/login` | 登录 `{account, password}`，account 支持邮箱或账号 |
+| POST | `/auth/forgot-password` | 忘记密码发验证码 `{email}` |
+| POST | `/auth/reset-password` | 重置密码 `{email, code, new_password}` |
+| POST | `/auth/change-password` | 修改密码（需 JWT） |
 | GET | `/auth/me` | 当前用户 |
+| PUT | `/auth/me` | 更新资料 |
+
+用户字段含 `email`、`is_demo`、`email_verified`。演示账号 `is_demo=true` 不参与班级默认分组与催办统计。
+
+### 管理端用户
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/admin/users?exclude_demo=1` | 学员列表（默认排除演示；`include_demo=1` 含演示） |
+| PATCH | `/admin/users/{id}` | 禁用/启用 `{status}` 或重置 `{password}` |
+| POST | `/admin/users` | 创建教师 `{name, email, password, role: admin}` |
+| POST | `/admin/classes/{id}/import` | CSV/Excel 批量导入班级成员 |
+| POST | `/admin/ops/create-groups` | 智能分组，需 `class_id` 或 `user_ids` |
 
 ## 画像
 
@@ -95,6 +113,21 @@ Base URL: `http://localhost:5000/api`（开发时经 Vite 代理为 `/api`）
 | PUT | `/admin/community/posts/{id}/status` | 隐藏/恢复帖子 |
 
 ## 状态码
+
+## 角色与权限矩阵
+
+| 角色 | 标识 | 数据范围 | 说明 |
+|------|------|----------|------|
+| 学员 | `role=user` | 已加入/待审批班级、本班活动与私聊 | `GET /classes` 仅返回与本人相关的班级；私聊需 `users_share_active_class` |
+| 教师 | `role=admin` + `Classroom.teacher_id` | 本人任课班级与指挥舱指标 | 多教师按 `teacher_id` 隔离；`teacher_id=null` 的演示班仅首个 bootstrap 管理员可管 |
+| 演示学员 | `is_demo=true` | 社区示例、演示班 | 不可 `join-request` 真实班；分组/预览/导出默认排除 |
+| 禁用账号 | `status=disabled` | 无 | 改密或禁用后 `token_version` 递增，旧 JWT 立即失效 |
+
+**教师督导旁路**：教师 JWT 访问学员 API（如小组看板、聊天）时保留只读/督导能力，见各路由内 `role==admin` 分支。
+
+**管理端**：`PATCH /admin/users/{id}` 可设 `status` 或重置密码；`GET /admin/users` 默认 `exclude_demo=1`。
+
+## 错误码
 
 - 200 成功
 - 400 参数错误

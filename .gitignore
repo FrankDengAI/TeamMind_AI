@@ -12,6 +12,9 @@ htmlcov/
 node_modules/
 frontend/dist/
 
+# Local secrets / env
+.env
+
 # Local data
 data/*
 !data/.gitkeep

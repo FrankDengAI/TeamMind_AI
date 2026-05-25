@@ -2,7 +2,8 @@
 import json
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import get_jwt_identity
+from app.middleware.auth import jwt_required_compat
 
 from app import db
 from app.config import Config
@@ -205,13 +206,13 @@ def _build_composite(user_id: int, raw: str, active_tags, source: str, *, class_
 
 
 @bp.route("/tags/catalog", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def tag_catalog():
     return jsonify(load_tag_catalog())
 
 
 @bp.route("/current", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def current_profile():
     uid = get_request_user_id()
     prof = UserProfile.query.filter_by(user_id=uid).order_by(UserProfile.create_time.desc()).first()
@@ -219,7 +220,7 @@ def current_profile():
 
 
 @bp.route("/llm-status", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def profile_llm_status():
     """学生端：当前班级是否可享受教师套餐下的 DeepSeek 画像."""
     uid = get_request_user_id()
@@ -239,7 +240,7 @@ def profile_llm_status():
 
 
 @bp.route("/submit", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def submit_profile():
     uid = get_request_user_id()
     class_id = None
@@ -279,7 +280,7 @@ def submit_profile():
 
 
 @bp.route("/recalculate", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def recalculate_profile():
     uid = get_request_user_id()
     prof = UserProfile.query.filter_by(user_id=uid).order_by(UserProfile.create_time.desc()).first()
@@ -290,7 +291,7 @@ def recalculate_profile():
 
 
 @bp.route("/parse", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def parse_text():
     uid = get_request_user_id()
     data = request.get_json(silent=True) or {}
@@ -309,7 +310,7 @@ def parse_text():
 
 
 @bp.route("/resume", methods=["POST"])
-@jwt_required()
+@jwt_required_compat
 def parse_resume():
     uid = get_request_user_id()
     if "resume_file" not in request.files:
@@ -337,7 +338,7 @@ def parse_resume():
 
 
 @bp.route("/history", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def history():
     uid = get_request_user_id()
     profiles = UserProfile.query.filter_by(user_id=uid).order_by(UserProfile.create_time.desc()).all()
@@ -345,7 +346,7 @@ def history():
 
 
 @bp.route("/<int:profile_id>", methods=["GET"])
-@jwt_required()
+@jwt_required_compat
 def get_profile(profile_id):
     uid = get_request_user_id()
     prof = UserProfile.query.get_or_404(profile_id)
@@ -359,7 +360,7 @@ def get_profile(profile_id):
 
 
 @bp.route("/<int:profile_id>", methods=["PUT"])
-@jwt_required()
+@jwt_required_compat
 def update_profile(profile_id):
     uid = get_request_user_id()
     prof = UserProfile.query.get_or_404(profile_id)

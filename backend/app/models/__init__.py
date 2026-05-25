@@ -1,5 +1,6 @@
 """SQLAlchemy 模型导出."""
 from app.models.user import User
+from app.models.auth_token import AuthToken
 from app.models.user_profile import UserProfile
 from app.models.group_info import GroupInfo
 from app.models.task import Task
@@ -15,6 +16,7 @@ from app.models.milestone import Milestone
 
 __all__ = [
     "User",
+    "AuthToken",
     "UserProfile",
     "GroupInfo",
     "Task",

@@ -84,7 +84,8 @@ def main() -> int:
         print(f"\n{len(failed)} 项未通过。请检查环境变量、Volume 挂载与 Zeabur 构建日志。")
         return 1
 
-    print("\n全部检查通过。正式生产请立即修改默认演示密码。")
+    print("\n全部检查通过。")
+    print("正式生产：请执行 python scripts/bootstrap_production.py 创建管理员，并配置 SMTP / TEAMMIND_DISABLE_DEMO_SEED=1。")
     return 0
 
 
