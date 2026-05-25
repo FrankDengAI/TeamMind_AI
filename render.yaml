@@ -1,0 +1,25 @@
+# Render Web Service 示例（可选：在 Dashboard 用 Blueprint 导入）
+# 必填环境变量见 docs/DEPLOY.md
+services:
+  - type: web
+    name: teammind-ai
+    runtime: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: python main.py --host 0.0.0.0 --no-browser
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.10.13"
+      - key: TEAMMIND_ENV
+        value: development
+      - key: TEAMMIND_DISABLE_EMAIL_AUTH
+        value: "1"
+      - key: TEAMMIND_ALLOW_LEGACY_REGISTER
+        value: "1"
+      - key: TEAMMIND_DISABLE_DEMO_SEED
+        value: "0"
+      # 正式上线请改为 production 并设置下列变量：
+      # SECRET_KEY, JWT_SECRET_KEY, TEAMMIND_CORS_ORIGINS, TEAMMIND_PUBLIC_URL
+    disk:
+      name: teammind-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1

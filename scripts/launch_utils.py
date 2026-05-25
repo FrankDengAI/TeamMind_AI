@@ -237,16 +237,36 @@ def wait_admin_ready(port: int = DEFAULT_BACKEND_PORT, timeout: float = 30) -> b
     return False
 
 
+def is_paas_deploy() -> bool:
+    """云平台（Render/Zeabur 等）需单进程前台绑定 PORT。"""
+    return os.environ.get("TEAMMIND_PAAS") == "1" or bool(os.environ.get("RENDER")) or bool(os.environ.get("ZEABUR"))
+
+
 def run_flask_server(port: int, serve_static: bool = False, static_ui: str | None = None, host: str = "127.0.0.1") -> None:
     sys.path.insert(0, str(BACKEND_DIR))
     os.chdir(BACKEND_DIR)
-    from app import create_app, socketio
+    try:
+        from app import create_app, socketio
 
-    app = create_app(serve_static=serve_static, static_ui=static_ui)
-    if socketio is not None:
-        socketio.run(app, host=host, port=port, debug=False, use_reloader=False, allow_unsafe_werkzeug=True)
-    else:
-        app.run(host=host, port=port, debug=False, use_reloader=False, threaded=True)
+        app = create_app(serve_static=serve_static, static_ui=static_ui)
+        disable_socketio = os.environ.get("TEAMMIND_DISABLE_SOCKETIO", "0") != "0"
+        use_waitress = os.environ.get("TEAMMIND_USE_WAITRESS", "0") != "0" or is_paas_deploy()
+
+        if use_waitress:
+            from waitress import serve
+
+            log(f"Waitress 监听 {host}:{port}", "Admin")
+            serve(app, host=host, port=port, threads=8)
+        elif socketio is not None and not disable_socketio:
+            socketio.run(app, host=host, port=port, debug=False, use_reloader=False, allow_unsafe_werkzeug=True)
+        else:
+            app.run(host=host, port=port, debug=False, use_reloader=False, threaded=True)
+    except Exception as exc:
+        import traceback
+
+        log(f"Flask 启动失败: {exc}", "Admin")
+        traceback.print_exc()
+        raise
 
 
 def start_flask_thread(
@@ -324,6 +344,38 @@ def start_user_http_thread(port: int = DEFAULT_USER_PORT, host: str = "127.0.0.1
     return t
 
 
+def launch_paas(*, init_db: bool = False, host: str = "0.0.0.0") -> int:
+    """Render / Zeabur 等：单进程前台绑定 PORT，供健康检查探测。"""
+    port = int(os.environ.get("PORT", "10000"))
+    os.environ.setdefault("TEAMMIND_DISABLE_SOCKETIO", "1")
+    public = (os.environ.get("RENDER_EXTERNAL_URL") or os.environ.get("ZEABUR_URL") or "").strip()
+    if public:
+        os.environ.setdefault("TEAMMIND_PUBLIC_URL", public.rstrip("/"))
+
+    log(f"云平台部署模式：监听 {host}:{port}", "TeamMind")
+    if public:
+        log(f"公网地址: {public}", "TeamMind")
+
+    ensure_data_dirs()
+    if not check_python_deps():
+        return 1
+
+    try:
+        if init_db or not DB_FILE.exists():
+            init_database(force=init_db)
+    except Exception as e:
+        log(f"数据库初始化失败: {e}", "TeamMind")
+        return 1
+
+    if not (WEB_PORTAL / "index.html").is_file():
+        log(f"缺少统一门户: {WEB_PORTAL}", "Portal")
+        return 1
+
+    log("启动 Web 服务（门户 + 教师端 + 学生端 + API）...", "TeamMind")
+    run_flask_server(port, serve_static=True, static_ui="portal", host=host)
+    return 0
+
+
 def launch_all(
     *,
     backend_port: int = DEFAULT_BACKEND_PORT,
@@ -339,6 +391,10 @@ def launch_all(
     host: str = "127.0.0.1",
 ) -> int:
     """统一启动：默认只启动 5000 统一门户；8080 仅由 main_user.py 兼容启动."""
+    if is_paas_deploy():
+        paas_host = "0.0.0.0" if host in ("127.0.0.1", "localhost") else host
+        return launch_paas(init_db=init_db, host=paas_host)
+
     no_kill_port = no_kill_port or not kill_port
     backend_url = f"http://127.0.0.1:{backend_port}"
     admin_url = f"{backend_url}/"

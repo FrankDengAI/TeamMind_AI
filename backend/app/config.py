@@ -31,6 +31,10 @@ def load_project_env(env_path: Path | None = None) -> bool:
 
 
 load_project_env()
+
+# Render / Zeabur 等未显式设置 TEAMMIND_ENV 时，避免生产校验缺密钥导致进程退出
+if (os.environ.get("RENDER") or os.environ.get("ZEABUR")) and not os.environ.get("TEAMMIND_ENV"):
+    os.environ.setdefault("TEAMMIND_ENV", "development")
 DATA_DIR = BASE_DIR / "data"
 UPLOAD_FOLDER = DATA_DIR / "uploads"
 PRIVATE_UPLOAD_DIR = DATA_DIR / "private_uploads"

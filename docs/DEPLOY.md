@@ -54,7 +54,32 @@ python scripts/demo_flow_20students.py --reset
 
 脚本结束后打印各组名单与角色；用 `student01` / `123456` 进入 `/student/` 验证学员端。
 
-## 2.2 Zeabur 公网部署（逐步操作）
+## 2.2 Render 公网部署
+
+Render 会注入环境变量 `PORT`（常见为 `10000`）和 `RENDER=true`。启动命令保持：
+
+```bash
+python main.py --host 0.0.0.0 --no-browser
+```
+
+**首次部署建议在 Render Dashboard → Environment 设置：**
+
+| 变量 | 建议值（可先跑通） |
+|------|-------------------|
+| `TEAMMIND_ENV` | `development`（或 `production` 且必须配齐下列密钥） |
+| `TEAMMIND_DISABLE_EMAIL_AUTH` | `1` |
+| `TEAMMIND_ALLOW_LEGACY_REGISTER` | `1` |
+| `TEAMMIND_PUBLIC_URL` | 你的 Render 公网 URL，如 `https://xxx.onrender.com` |
+
+**正式上线** 将 `TEAMMIND_ENV` 改为 `production`，并设置 `SECRET_KEY`、`JWT_SECRET_KEY`、`TEAMMIND_CORS_ORIGINS`（填 Render 域名）。
+
+**持久化数据库**：在 Render 为服务挂载 Disk，路径指向 `/opt/render/project/src/data`，否则每次部署会重新初始化 SQLite。
+
+日志出现 `No open ports detected` 或 `后台启动失败` 时，多为旧版启动器在子线程监听端口；请拉取最新代码（含 `launch_paas` 云平台模式）。
+
+可选：导入仓库根目录 [`render.yaml`](../render.yaml) 作为 Blueprint 参考。
+
+## 2.3 Zeabur 公网部署（逐步操作）
 
 仓库已内置 Zeabur 构建配置，无需手动设置 `ZBPACK_*` 环境变量：
 

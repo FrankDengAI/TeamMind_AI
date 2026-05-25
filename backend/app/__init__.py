@@ -175,9 +175,14 @@ def _validate_runtime_config(app):
     }
     for key, default in weak_values.items():
         if app.config.get(key) == default:
-            raise RuntimeError(f"生产环境必须通过环境变量设置 {key}")
+            raise RuntimeError(
+                f"生产环境必须通过环境变量设置 {key}（Render 面板 Variables / Zeabur 环境变量）"
+            )
     if app.config.get("CORS_ORIGINS") == "*":
-        raise RuntimeError("生产环境必须通过 TEAMMIND_CORS_ORIGINS 设置明确的前端域名白名单")
+        raise RuntimeError(
+            "生产环境必须通过 TEAMMIND_CORS_ORIGINS 设置明确的前端域名白名单，"
+            "例如 https://your-app.onrender.com"
+        )
 
 
 def _ensure_runtime_schema():
