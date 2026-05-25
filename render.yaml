@@ -15,6 +15,8 @@ services:
         value: "1"
       - key: TEAMMIND_ALLOW_LEGACY_REGISTER
         value: "1"
+      - key: TEAMMIND_DEFER_DEMO_SEED
+        value: "1"
       - key: TEAMMIND_DISABLE_DEMO_SEED
         value: "0"
       # 正式上线请改为 production 并设置下列变量：

@@ -356,16 +356,23 @@ def launch_paas(*, init_db: bool = False, host: str = "0.0.0.0") -> int:
     if public:
         log(f"公网地址: {public}", "TeamMind")
 
+    os.environ.setdefault("TEAMMIND_FAST_BOOT", "1")
+    os.environ.setdefault("TEAMMIND_DEFER_DEMO_SEED", "1")
+
     ensure_data_dirs()
     if not check_python_deps():
         return 1
 
-    try:
-        if init_db or not DB_FILE.exists():
-            init_database(force=init_db)
-    except Exception as e:
-        log(f"数据库初始化失败: {e}", "TeamMind")
-        return 1
+    # Render 端口探测有超时：禁止在绑定 PORT 之前跑完整 init_db.py（可能耗时数分钟）
+    if init_db:
+        log("警告：--init 将在启动前重建数据库，可能导致云平台部署超时", "TeamMind")
+        try:
+            init_database(force=True)
+        except Exception as e:
+            log(f"数据库初始化失败: {e}", "TeamMind")
+            return 1
+    elif not DB_FILE.exists():
+        log("数据库文件不存在，将快速建表并后台导入演示数据", "TeamMind")
 
     if not (WEB_PORTAL / "index.html").is_file():
         log(f"缺少统一门户: {WEB_PORTAL}", "Portal")

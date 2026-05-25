@@ -75,7 +75,7 @@ python main.py --host 0.0.0.0 --no-browser
 
 **持久化数据库**：在 Render 为服务挂载 Disk，路径指向 `/opt/render/project/src/data`，否则每次部署会重新初始化 SQLite。
 
-日志出现 `No open ports detected` 或 `后台启动失败` 时，多为旧版启动器在子线程监听端口；请拉取最新代码（含 `launch_paas` 云平台模式）。
+日志出现 `No open ports detected` / `Timed Out` 时，多为启动前执行了完整 `init_db.py` 导致迟迟不绑定 `PORT`。新版会先绑定端口，演示数据在后台导入；日志应出现 `Waitress 监听 0.0.0.0:10000`。
 
 可选：导入仓库根目录 [`render.yaml`](../render.yaml) 作为 Blueprint 参考。
 

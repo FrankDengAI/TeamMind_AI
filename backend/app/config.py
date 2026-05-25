@@ -132,6 +132,8 @@ class Config:
     # 演示种子与认证（生产默认关闭演示自动灌库）
     DISABLE_DEMO_SEED = os.environ.get("TEAMMIND_DISABLE_DEMO_SEED", "0") != "0"
     SEED_DEMO_ON_FIRST_BOOT = os.environ.get("TEAMMIND_SEED_DEMO_ON_FIRST_BOOT", "0") != "0"
+    DEFER_DEMO_SEED = os.environ.get("TEAMMIND_DEFER_DEMO_SEED", "0") != "0"
+    FAST_BOOT = os.environ.get("TEAMMIND_FAST_BOOT", "0") != "0"
     ALLOW_LEGACY_REGISTER = os.environ.get("TEAMMIND_ALLOW_LEGACY_REGISTER", "1") != "0"
     DISABLE_EMAIL_AUTH = os.environ.get("TEAMMIND_DISABLE_EMAIL_AUTH", "1") != "0"
 

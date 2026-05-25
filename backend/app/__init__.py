@@ -142,9 +142,23 @@ def create_app(config_class=Config, serve_static=False, static_ui=None):
     with app.app_context():
         db.create_all()
         _ensure_runtime_schema()
+        _ensure_bootstrap_admin()
         _seed_billing_plans()
         if not app.config.get("TESTING"):
-            _maybe_seed_demo_data(app)
+            if app.config.get("DEFER_DEMO_SEED"):
+                import threading
+
+                def _background_demo_seed() -> None:
+                    with app.app_context():
+                        try:
+                            _maybe_seed_demo_data(app)
+                            print("[TeamMind] 演示数据后台导入完成", flush=True)
+                        except Exception as exc:
+                            print(f"[TeamMind] 演示数据后台导入失败: {exc}", flush=True)
+
+                threading.Thread(target=_background_demo_seed, daemon=True).start()
+            else:
+                _maybe_seed_demo_data(app)
 
     try:
         from app.scheduler.jobs import start_scheduler
@@ -307,6 +321,37 @@ def _maybe_seed_demo_data(app):
     _seed_demo_activities()
     _seed_demo_enrichment()
     _sync_demo_student_passwords()
+
+
+def _ensure_bootstrap_admin():
+    """确保至少存在可登录的管理员（云平台快速启动，不跑完整 init_db）。"""
+    import bcrypt
+
+    from app.models import User
+
+    defaults = (
+        ("管理员", "admin", "admin123", "admin"),
+        ("张老师", "teacher", "admin123", "admin"),
+    )
+    changed = False
+    for name, account, password, role in defaults:
+        if User.query.filter_by(account=account).first():
+            continue
+        db.session.add(
+            User(
+                name=name,
+                account=account,
+                password_hash=bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8"),
+                role=role,
+                is_demo=True,
+                status="active",
+                bio="系统引导账号",
+            )
+        )
+        changed = True
+    if changed:
+        db.session.commit()
+        print("[TeamMind] 已创建引导账号 admin/admin123", flush=True)
 
 
 def _seed_billing_plans():
