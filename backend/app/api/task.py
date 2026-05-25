@@ -181,10 +181,15 @@ def update_progress(task_id):
     uid = get_request_user_id()
     task = Task.query.get_or_404(task_id)
     user = User.query.get(uid)
+    if not user:
+        return jsonify({"error": "用户不存在"}), 401
     if user.role != "admin" and task.assignee_id != uid:
         return jsonify({"error": "只能更新自己的任务进度"}), 403
     data = request.get_json(silent=True) or {}
-    progress = int(data.get("progress", task.progress))
+    try:
+        progress = int(data.get("progress", task.progress))
+    except (TypeError, ValueError):
+        return jsonify({"error": "progress 须为 0-100 的整数"}), 400
     progress = max(0, min(100, progress))
     task.progress = progress
     if progress >= 100:
@@ -215,6 +220,8 @@ def submit_task_feedback(task_id):
     uid = get_request_user_id()
     task = Task.query.get_or_404(task_id)
     user = User.query.get(uid)
+    if not user:
+        return jsonify({"error": "用户不存在"}), 401
     if user.role != "admin" and task.assignee_id != uid and not _user_in_group(uid, task.group_id):
         return jsonify({"error": "无权反馈该任务"}), 403
     data = request.get_json(silent=True) or {}

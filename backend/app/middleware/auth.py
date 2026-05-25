@@ -19,15 +19,11 @@ def _jwt_secrets():
     return secrets
 
 
-def resolve_jwt_sub():
-    """解析 Authorization Bearer 令牌，兼容品牌升级前后的 JWT 密钥."""
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        return None, "未登录或令牌无效", 401
-    token = auth[7:].strip()
+def decode_jwt_token(token: str):
+    """解析原始 JWT 字符串，兼容品牌升级前后的密钥（供 WebSocket 等场景使用）."""
+    token = (token or "").strip()
     if not token or token.lower() in {"null", "undefined"}:
         return None, "未登录或令牌无效", 401
-
     for secret in _jwt_secrets():
         try:
             payload = pyjwt.decode(token, secret, algorithms=["HS256"])
@@ -39,6 +35,15 @@ def resolve_jwt_sub():
         except Exception:
             continue
     return None, "未登录或令牌无效", 401
+
+
+def resolve_jwt_sub():
+    """解析 Authorization Bearer 令牌，兼容品牌升级前后的 JWT 密钥."""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None, "未登录或令牌无效", 401
+    token = auth[7:].strip()
+    return decode_jwt_token(token)
 
 
 def get_request_user_id():

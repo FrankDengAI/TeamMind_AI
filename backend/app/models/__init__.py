@@ -10,6 +10,8 @@ from app.models.community import ChatConversation, ChatMessage, CommunityPost, P
 from app.models.team_activity import TeamActivity, TeamActivityParticipant, TeamConfirmation, TeamJoinRequest, TeamRoom
 from app.models.classroom import Classroom, ClassMembership, ClassRequest
 from app.models.billing import AiUsageLog, FeatureOverride, PaymentOrder, SubscriptionPlan, UserSubscription
+from app.models.rubric import Rubric, RubricScore
+from app.models.milestone import Milestone
 
 __all__ = [
     "User",
@@ -37,4 +39,7 @@ __all__ = [
     "PaymentOrder",
     "AiUsageLog",
     "FeatureOverride",
+    "Rubric",
+    "RubricScore",
+    "Milestone",
 ]

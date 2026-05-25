@@ -114,6 +114,7 @@ def get_entitlements(user_id: int) -> dict:
             "pdf_reports_used": sub.pdf_reports_used or 0,
             "pdf_reports_monthly": limits.get("pdf_report_monthly", 0),
             "deep_preview_used": sub.deep_preview_used or 0,
+            "grouping_scenario_used": sub.deep_preview_used or 0,
             "class_count": class_count,
             "active_activities": active_activities,
         },
@@ -123,6 +124,9 @@ def get_entitlements(user_id: int) -> dict:
             "activity_llm_insight": bool(limits.get("activity_llm_insight")),
             "profile_llm_for_class": bool(limits.get("profile_llm_for_class")),
             "command_dashboard_pro": bool(limits.get("command_dashboard_pro")),
+            "class_copilot": bool(limits.get("class_copilot")),
+            "timeline_editable": bool(limits.get("timeline_editable")),
+            "class_nudge_send": bool(limits.get("class_nudge_send")),
         },
     }
 
@@ -196,6 +200,22 @@ def check_limit(user_id: int, key: str, *, current: int | None = None, increment
     elif key == "profile_llm_for_class":
         if not limits.get("profile_llm_for_class"):
             raise PaywallError("班级 AI 画像增强需教师开通专业版", feature="profile.llm")
+    elif key == "grouping_scenario_monthly":
+        cap = limits.get("grouping_scenario_monthly", 0)
+        used = usage.get("grouping_scenario_used", 0)
+        if cap <= 0:
+            raise PaywallError("多方案分组对比需升级专业版", feature="grouping.compare")
+        if used + increment > cap:
+            raise PaywallError(f"本月多方案对比已达上限（{cap} 次）", feature="grouping.compare")
+    elif key == "rubric_sets":
+        cap = limits.get("rubric_sets_max", 0)
+        from app.models import Rubric
+
+        count = current if current is not None else Rubric.query.count()
+        if cap <= 0:
+            raise PaywallError("Rubric 量表需升级专业版", feature="rubric")
+        if count + increment > cap:
+            raise PaywallError(f"当前套餐最多 {cap} 套 Rubric", feature="rubric")
 
 
 def consume_ai_points(
@@ -209,13 +229,27 @@ def consume_ai_points(
 ) -> dict:
     """扣减 AI 点数；allow_preview 时免费档可消耗预览额度."""
     cost = cost if cost is not None else AI_POINT_COSTS.get(feature, 1)
-    sub = get_or_create_subscription(user_id)
-    ent = get_entitlements(user_id)
-    remaining = ent["usage"]["ai_points_remaining"]
+    sub = UserSubscription.query.filter_by(user_id=user_id).with_for_update().first()
+    if not sub:
+        sub = UserSubscription(user_id=user_id, plan_code="free", status="active", usage_month=_current_month())
+        db.session.add(sub)
+        db.session.flush()
+    month = _current_month()
+    if sub.usage_month != month:
+        sub.usage_month = month
+        sub.ai_points_used = 0
+        sub.pdf_reports_used = 0
+        sub.deep_preview_used = 0
+    plan_code = _effective_plan_code(sub)
+    limits = plan_limits(plan_code)
+    monthly_quota = limits.get("ai_points_monthly", 20)
+    extra = (sub.ai_points_extra or 0) + _override_extra_points(user_id)
+    used = sub.ai_points_used or 0
+    remaining = max(0, monthly_quota + extra - used)
 
     if remaining < cost:
-        if allow_preview and ent["plan_code"] == "free":
-            preview_cap = ent["limits"].get("deep_grouping_preview_monthly", 1)
+        if allow_preview and plan_code == "free":
+            preview_cap = limits.get("deep_grouping_preview_monthly", 1)
             if feature in {"grouping.advice", "grouping.deep"} and (sub.deep_preview_used or 0) < preview_cap:
                 sub.deep_preview_used = (sub.deep_preview_used or 0) + 1
                 db.session.commit()
@@ -226,7 +260,7 @@ def consume_ai_points(
             preview={"required": cost, "remaining": remaining},
         )
 
-    sub.ai_points_used = (sub.ai_points_used or 0) + cost
+    sub.ai_points_used = used + cost
     log = AiUsageLog(
         user_id=user_id,
         feature=feature,
@@ -263,19 +297,22 @@ def mask_ai_analysis(analysis: dict | None, *, entitled: bool) -> dict:
 
 def activate_subscription(user_id: int, plan_code: str, period: str, *, days: int | None = None) -> UserSubscription:
     sub = get_or_create_subscription(user_id)
+    now = datetime.utcnow()
+    base = now
+    if sub.expire_at and sub.expire_at > now and sub.plan_code == plan_code and sub.status in {"active", "trial"}:
+        base = sub.expire_at
     sub.plan_code = plan_code
     sub.status = "active"
     sub.period = period
     if days:
-        base = sub.expire_at if sub.expire_at and sub.expire_at > datetime.utcnow() else datetime.utcnow()
         sub.expire_at = base + timedelta(days=days)
     elif period == "year":
-        sub.expire_at = datetime.utcnow() + timedelta(days=365)
+        sub.expire_at = base + timedelta(days=365)
     elif period == "month":
-        sub.expire_at = datetime.utcnow() + timedelta(days=30)
+        sub.expire_at = base + timedelta(days=30)
     elif period == "trial":
         sub.status = "trial"
-        sub.expire_at = datetime.utcnow() + timedelta(days=7)
+        sub.expire_at = base + timedelta(days=7)
     db.session.commit()
     return sub
 

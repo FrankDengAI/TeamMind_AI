@@ -15,6 +15,7 @@ AI_POINT_COSTS: dict[str, int] = {
     "task.adjust": 3,
     "report.llm": 5,
     "export.pdf": 10,
+    "class.copilot": 3,
 }
 
 PLAN_CATALOG: dict[str, dict[str, Any]] = {
@@ -41,11 +42,18 @@ PLAN_CATALOG: dict[str, dict[str, Any]] = {
             "profile_llm_for_class": False,
             "custom_templates_max": 3,
             "command_dashboard_pro": False,
+            "class_health_dashboard": True,
+            "class_copilot": False,
+            "timeline_editable": False,
+            "grouping_templates_pro": 0,
+            "grouping_scenario_monthly": 0,
+            "rubric_sets_max": 0,
+            "class_nudge_send": False,
         },
         "features_marketing": [
             "完整跑通 1 次课程组队闭环",
             "规则画像 + 自动分组算法",
-            "基础指挥舱与任务看板",
+            "班级健康度看板（只读）",
             "每月 20 AI 点（预览级）",
         ],
         "features_marketing_en": [
@@ -78,10 +86,18 @@ PLAN_CATALOG: dict[str, dict[str, Any]] = {
             "profile_llm_for_class": True,
             "custom_templates_max": 20,
             "command_dashboard_pro": True,
+            "class_health_dashboard": True,
+            "class_copilot": True,
+            "timeline_editable": True,
+            "grouping_templates_pro": 4,
+            "grouping_scenario_monthly": 10,
+            "rubric_sets_max": 5,
+            "class_nudge_send": True,
         },
         "features_marketing": [
             "DeepSeek 画像增强（全班共享）",
-            "AI 分组建议与活动复盘",
+            "班级 Copilot + 可编辑学期时间轴",
+            "Pro 分组策略模板 + 一键催办",
             "无水印 Excel 导出 + 每月 10 份 PDF",
             "每月 500 AI 点",
         ],
@@ -115,10 +131,14 @@ PLAN_CATALOG: dict[str, dict[str, Any]] = {
             "profile_llm_for_class": True,
             "custom_templates_max": 9999,
             "command_dashboard_pro": True,
+            "class_health_dashboard": True,
+            "class_copilot": True,
+            "timeline_editable": True,
+            "grouping_templates_pro": 99,
         },
         "features_marketing": [
             "不限班级与活动数量",
-            "每班最多 200 人",
+            "全部高级分组模板 + 班级 Copilot",
             "每月 2000 AI 点",
             "PDF 报告不限量",
         ],
@@ -170,6 +190,11 @@ def all_plans_public() -> list[dict[str, Any]]:
         p = get_plan(code)
         if not p:
             continue
+        month_cents = p["price_month_cents"]
+        year_cents = p["price_year_cents"]
+        year_save_pct = 0
+        if month_cents > 0 and year_cents > 0:
+            year_save_pct = max(0, round((1 - year_cents / (month_cents * 12)) * 100))
         out.append(
             {
                 "code": p["code"],
@@ -178,10 +203,11 @@ def all_plans_public() -> list[dict[str, Any]]:
                 "badge": p.get("badge"),
                 "badge_en": p.get("badge_en") or "",
                 "highlight": p.get("highlight", False),
-                "price_month": p["price_month_cents"] / 100,
-                "price_year": p["price_year_cents"] / 100,
-                "price_month_cents": p["price_month_cents"],
-                "price_year_cents": p["price_year_cents"],
+                "price_month": month_cents / 100,
+                "price_year": year_cents / 100,
+                "price_month_cents": month_cents,
+                "price_year_cents": year_cents,
+                "year_save_percent": year_save_pct,
                 "limits": p["limits"],
                 "features": p.get("features_marketing", []),
                 "features_en": p.get("features_marketing_en", p.get("features_marketing", [])),

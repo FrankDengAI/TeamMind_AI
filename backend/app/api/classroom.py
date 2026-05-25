@@ -12,6 +12,8 @@ from app.middleware.auth import get_request_user_id, admin_required, write_audit
 from app.models import ClassMembership, ClassRequest, Classroom, GroupInfo, TeamActivity, TeamActivityParticipant, TeamRoom, User, UserProfile
 from app.middleware.entitlement import paywall_response
 from app.services.class_grouping import build_grouping_advice
+from app.services.classroom_insights import build_class_health, build_nudge_list, load_timeline, save_timeline
+from app.services.nudge_service import send_class_nudges
 from app.services.entitlement_service import PaywallError, check_limit, consume_ai_points, get_entitlements, mask_ai_analysis
 
 bp = Blueprint("classroom", __name__)
@@ -77,6 +79,11 @@ def _class_detail(cls: Classroom):
         _activity_brief(a)
         for a in TeamActivity.query.filter_by(class_id=cls.id).order_by(TeamActivity.create_time.desc()).all()
     ]
+    try:
+        data["health"] = build_class_health(cls.id)
+    except Exception:
+        data["health"] = None
+    data["timeline"] = load_timeline(cls)
     return data
 
 
@@ -432,3 +439,63 @@ def leave_class_request(class_id):
     db.session.commit()
     write_audit("class_leave_request", "classroom", cls.id)
     return jsonify(req.to_dict()), 201
+
+
+@admin_bp.route("/classes/<int:class_id>/health", methods=["GET"])
+@admin_required
+def class_health(class_id):
+    Classroom.query.get_or_404(class_id)
+    try:
+        return jsonify(build_class_health(class_id))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+@admin_bp.route("/classes/<int:class_id>/nudges", methods=["GET"])
+@admin_required
+def class_nudges(class_id):
+    Classroom.query.get_or_404(class_id)
+    return jsonify(build_nudge_list(class_id))
+
+
+@admin_bp.route("/classes/<int:class_id>/nudges/send", methods=["POST"])
+@admin_required
+def class_nudges_send(class_id):
+    cls = Classroom.query.get_or_404(class_id)
+    uid = get_request_user_id()
+    if cls.teacher_id and cls.teacher_id != uid:
+        return jsonify({"error": "无权操作该班级"}), 403
+    ent = get_entitlements(uid)
+    if not ent.get("flags", {}).get("class_nudge_send"):
+        return jsonify({"error": "站内一键催办需升级专业版", "code": "PAYWALL", "feature": "class.nudge_send"}), 402
+    data = request.get_json(silent=True) or {}
+    user_ids = data.get("user_ids")
+    if user_ids is not None and not isinstance(user_ids, list):
+        return jsonify({"error": "user_ids 须为数组"}), 400
+    result = send_class_nudges(
+        class_id,
+        uid,
+        user_ids=user_ids,
+        custom_message=(data.get("message") or "").strip() or None,
+    )
+    write_audit("class_nudge_send", "classroom", class_id, json.dumps({"sent": result.get("sent", 0)}))
+    return jsonify(result)
+
+
+@admin_bp.route("/classes/<int:class_id>/timeline", methods=["GET", "PUT"])
+@admin_required
+def class_timeline(class_id):
+    cls = Classroom.query.get_or_404(class_id)
+    if request.method == "GET":
+        return jsonify({"timeline": load_timeline(cls)})
+    data = request.get_json(silent=True) or {}
+    items = data.get("timeline")
+    if not isinstance(items, list):
+        return jsonify({"error": "timeline 须为数组"}), 400
+    ent = get_entitlements(get_request_user_id())
+    if not ent.get("flags", {}).get("timeline_editable"):
+        return jsonify({"error": "编辑学期时间轴需升级专业版", "code": "PAYWALL", "feature": "timeline.edit"}), 402
+    save_timeline(cls, items)
+    db.session.commit()
+    write_audit("class_timeline_update", "classroom", cls.id)
+    return jsonify({"timeline": items})

@@ -94,7 +94,7 @@ class PaymentOrder(db.Model):
     period = db.Column(db.String(16))  # month | year
     amount_cents = db.Column(db.Integer, nullable=False)
     channel = db.Column(db.String(16))  # wechat | alipay
-    status = db.Column(db.String(32), default="pending", index=True)  # pending | paid | expired | cancelled
+    status = db.Column(db.String(32), default="pending", index=True)  # pending | pending_review | paid | expired | cancelled
     qr_payload = db.Column(db.Text)
     paid_at = db.Column(db.DateTime)
     expire_at = db.Column(db.DateTime)

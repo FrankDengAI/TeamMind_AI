@@ -7,7 +7,7 @@ from app import db
 from app.middleware.auth import admin_required, get_request_user_id, write_audit
 from app.middleware.entitlement import paywall_response
 from app.models import AiUsageLog, BehaviorLog, GroupInfo, PaymentOrder, Task, TeamActivity, User, UserProfile, UserSubscription
-from app.services.billing_service import mark_order_paid
+from app.services.billing_service import mark_order_paid, pending_review_count, refresh_order_lifecycle
 from app.services.entitlement_service import PaywallError, activate_subscription, get_entitlements
 from app.services.task_ai_helpers import enrich_adjust_with_ai, enrich_assignments_with_ai
 from app.services.algorithms.grouping import GroupingAlgorithm
@@ -51,6 +51,26 @@ def system_config():
     data = request.get_json(silent=True) or {}
     write_audit("admin_config", detail=json.dumps(data))
     return jsonify({"message": "配置已记录", "received": data})
+
+
+@bp.route("/task-templates/market", methods=["GET"])
+@admin_required
+def task_template_market():
+    """任务模板市场 — 一键应用子任务."""
+    assigner = TaskAssignAlgorithm()
+    catalog = []
+    for key, tpl in (assigner.templates or {}).items():
+        tasks = tpl.get("tasks") or tpl.get("default_tasks") or []
+        catalog.append(
+            {
+                "key": key,
+                "name": tpl.get("name") or key,
+                "description": tpl.get("description") or "",
+                "task_count": len(tasks),
+                "sample_tasks": tasks[:4],
+            }
+        )
+    return jsonify({"templates": catalog})
 
 
 @bp.route("/templates", methods=["GET", "POST", "PUT"])
@@ -113,6 +133,29 @@ def command_dashboard():
             feedback_count += dash["summary"].get("feedback_count", 0)
     except Exception:
         pass
+    class_summaries = []
+    try:
+        from app.models import Classroom
+        from app.services.classroom_insights import build_class_health, build_nudge_list
+
+        for cls in Classroom.query.order_by(Classroom.create_time.desc()).limit(8).all():
+            try:
+                health = build_class_health(cls.id)
+                nudges = build_nudge_list(cls.id)
+                class_summaries.append(
+                    {
+                        "class_id": cls.id,
+                        "name": cls.name,
+                        "health_score": health.get("health_score"),
+                        "health_level": health.get("health_level"),
+                        "nudge_total": nudges.get("total", 0),
+                        "pending_confirmations": health.get("pending_confirmations", 0),
+                    }
+                )
+            except Exception:
+                pass
+    except Exception:
+        pass
     return jsonify(
         {
             "user_count": len(users),
@@ -122,6 +165,7 @@ def command_dashboard():
             **platform,
             "low_engagement_members": low_engagement,
             "feedback_count": feedback_count,
+            "class_summaries": class_summaries,
         }
     )
 
@@ -376,6 +420,15 @@ def ops_adjust_tasks():
     return jsonify(result)
 
 
+_STATUS_LABELS = {
+    "pending": "待支付",
+    "pending_review": "待核销",
+    "paid": "已支付",
+    "expired": "已过期",
+    "cancelled": "已取消",
+}
+
+
 @bp.route("/billing/orders", methods=["GET"])
 @admin_required
 def admin_billing_orders():
@@ -386,16 +439,17 @@ def admin_billing_orders():
         q = q.filter_by(status=status)
     rows = q.limit(200).all()
     users = {u.id: u for u in User.query.filter(User.id.in_([r.user_id for r in rows])).all()} if rows else {}
-    return jsonify(
-        [
-            {
-                **o.to_dict(include_qr=True),
-                "user_name": users.get(o.user_id).name if users.get(o.user_id) else None,
-                "user_account": users.get(o.user_id).account if users.get(o.user_id) else None,
-            }
-            for o in rows
-        ]
-    )
+    data = []
+    for o in rows:
+        refresh_order_lifecycle(o)
+        item = {
+            **o.to_dict(include_qr=True),
+            "status_label": _STATUS_LABELS.get(o.status, o.status),
+            "user_name": users.get(o.user_id).name if users.get(o.user_id) else None,
+            "user_account": users.get(o.user_id).account if users.get(o.user_id) else None,
+        }
+        data.append(item)
+    return jsonify({"orders": data, "pending_review_count": pending_review_count()})
 
 
 @bp.route("/billing/orders/<int:order_id>/fulfill", methods=["POST"])
@@ -403,6 +457,7 @@ def admin_billing_orders():
 def admin_fulfill_order(order_id):
     """人工核销订单."""
     order = PaymentOrder.query.get_or_404(order_id)
+    refresh_order_lifecycle(order)
     data = request.get_json(silent=True) or {}
     try:
         mark_order_paid(order, remark=data.get("remark") or "admin_fulfill")

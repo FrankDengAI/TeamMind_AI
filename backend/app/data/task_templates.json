@@ -1,0 +1,43 @@
+{
+  "product_dev": {
+    "name": "产品开发",
+    "description": "适合软件工程、产品设计类课程，覆盖需求到验收完整链路。",
+    "tasks": [
+      {"name": "需求调研", "difficulty": 2, "role": "协调对接", "hours": 4, "depends": []},
+      {"name": "原型设计", "difficulty": 3, "role": "设计执行", "hours": 8, "depends": [0]},
+      {"name": "后端开发", "difficulty": 4, "role": "技术开发", "hours": 12, "depends": [1]},
+      {"name": "前端开发", "difficulty": 4, "role": "技术开发", "hours": 10, "depends": [1]},
+      {"name": "测试验收", "difficulty": 3, "role": "质量审核", "hours": 6, "depends": [2, 3]}
+    ]
+  },
+  "research": {
+    "name": "科研报告",
+    "description": "适合研究方法、课程论文，强调文献、实验与写作分工。",
+    "tasks": [
+      {"name": "文献综述", "difficulty": 3, "role": "数据支持", "hours": 8, "depends": []},
+      {"name": "实验设计", "difficulty": 4, "role": "技术开发", "hours": 10, "depends": [0]},
+      {"name": "数据分析", "difficulty": 4, "role": "数据支持", "hours": 8, "depends": [1]},
+      {"name": "论文撰写", "difficulty": 3, "role": "文案撰写", "hours": 12, "depends": [2]}
+    ]
+  },
+  "activity": {
+    "name": "活动策划",
+    "description": "适合社团活动、展示类项目，覆盖策划、物料与执行。",
+    "tasks": [
+      {"name": "方案策划", "difficulty": 3, "role": "创意策划", "hours": 6, "depends": []},
+      {"name": "物料设计", "difficulty": 2, "role": "设计执行", "hours": 6, "depends": [0]},
+      {"name": "宣传推广", "difficulty": 3, "role": "对外对接", "hours": 8, "depends": [0]},
+      {"name": "现场执行", "difficulty": 2, "role": "执行落地", "hours": 8, "depends": [1, 2]}
+    ]
+  },
+  "data_viz": {
+    "name": "数据可视化专题",
+    "description": "数据分析 + 可视化叙事，适合统计、商科课程。",
+    "tasks": [
+      {"name": "数据清洗", "difficulty": 3, "role": "数据支持", "hours": 6, "depends": []},
+      {"name": "探索分析", "difficulty": 3, "role": "数据支持", "hours": 8, "depends": [0]},
+      {"name": "图表设计", "difficulty": 2, "role": "设计执行", "hours": 6, "depends": [1]},
+      {"name": "结论汇报", "difficulty": 3, "role": "文案撰写", "hours": 8, "depends": [2]}
+    ]
+  }
+}

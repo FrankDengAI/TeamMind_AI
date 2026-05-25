@@ -102,3 +102,53 @@ class ExportService:
             c.drawString(50, 60, FREE_WATERMARK)
         c.save()
         return buf.getvalue()
+
+    def export_super_group_report(
+        self,
+        *,
+        class_name: str,
+        health: dict,
+        groups: list,
+        nudge_summary: dict | None = None,
+        watermark: bool = False,
+    ) -> bytes:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
+
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf, pagesize=A4)
+        y = 800
+        c.drawString(50, y, "TeamMind 超级分组报告")
+        y -= 24
+        c.drawString(50, y, f"班级: {class_name}")
+        y -= 20
+        c.drawString(50, y, f"健康分: {health.get('health_score', 0)} | 画像完成 {health.get('profile_completion_rate', 0)}%")
+        y -= 20
+        c.drawString(50, y, f"任务完成 {health.get('task_completion_rate', 0)}% | 逾期 {health.get('overdue_tasks', 0)}")
+        y -= 28
+        if nudge_summary:
+            c.drawString(50, y, f"待催办: 画像 {nudge_summary.get('no_profile', 0)} | 未参与活动 {nudge_summary.get('no_activity', 0)}")
+            y -= 24
+        c.drawString(50, y, f"共 {len(groups)} 个小组")
+        y -= 20
+        bd = health.get("breakdown") or {}
+        if bd:
+            c.drawString(50, y, f"健康分构成: 画像 {bd.get('profile_component')} + 任务 {bd.get('task_component')} + 风险 {bd.get('risk_component')}")
+            y -= 20
+        for g in groups[:12]:
+            line = f"- {g.get('group_name', '')}: 技能 {g.get('avg_skill', 0)} | 知识 {g.get('avg_knowledge', '-')} | 协作 {g.get('avg_collab', '-')}"
+            for seg in _wrap_text(line, 85)[:2]:
+                c.drawString(50, y, seg)
+                y -= 16
+            note = g.get("complement_note") or (g.get("config") or {}).get("complement_note")
+            if isinstance(note, str) and note and y > 100:
+                for seg in _wrap_text(note, 80)[:1]:
+                    c.drawString(60, y, seg)
+                    y -= 14
+            if y < 80:
+                break
+        if watermark:
+            c.setFont("Helvetica", 9)
+            c.drawString(50, 40, FREE_WATERMARK)
+        c.save()
+        return buf.getvalue()

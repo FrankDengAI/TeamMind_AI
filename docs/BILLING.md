@@ -18,12 +18,15 @@ V2 采用 **Freemium + 教师账号订阅**：学生端功能免费；教师（`
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/billing/plans` | 套餐与加购包列表 |
-| GET | `/api/billing/me` | 当前教师权益（需登录 admin） |
+| GET | `/api/billing/config` | 支付流程配置（开发自动付、收款码是否就绪） |
+| GET | `/api/billing/plans` | 套餐、加购包、AI 点数单价 |
+| GET | `/api/billing/me` | 当前教师权益 + 进行中订单 |
+| GET | `/api/billing/orders` | 我的订单列表 |
 | POST | `/api/billing/trial` | 领取 7 天 Pro 试用（每账号一次） |
 | POST | `/api/billing/orders` | 创建订单并返回收款码信息 |
 | GET | `/api/billing/orders/:id` | 轮询订单状态 |
-| POST | `/api/billing/orders/:id/confirm-paid` | 用户确认已付款（开发/人工核销） |
+| POST | `/api/billing/orders/:id/cancel` | 取消待支付/待核销订单 |
+| POST | `/api/billing/orders/:id/confirm-paid` | 开发环境自动开通；生产提交 `pending_review` |
 | GET | `/api/admin/billing/orders` | 运营订单列表 |
 | POST | `/api/admin/billing/orders/:id/fulfill` | 管理员核销 |
 | POST | `/api/admin/billing/grant` | 赠送套餐天数 |
@@ -52,9 +55,19 @@ V2 采用 **Freemium + 教师账号订阅**：学生端功能免费；教师（`
 见 [`.env.example`](../.env.example)：
 
 - `BILLING_WECHAT_QR_URL` / `BILLING_ALIPAY_QR_URL`：收款码图片 URL
-- `BILLING_MANUAL_CONFIRM`：是否允许「我已付款」流程
 - `BILLING_DEV_AUTO_PAY`：开发环境自动开通（非 production）
-- `BILLING_WEBHOOK_SECRET`：回调验签占位
+- `BILLING_ORDER_TTL_MINUTES`：待支付订单有效期（默认 30 分钟）
+- `BILLING_WEBHOOK_SECRET`：回调验签（`sign` 或请求头 `X-TeamMind-Sign`）
+
+## 订单状态
+
+| 状态 | 说明 |
+|------|------|
+| `pending` | 待支付 |
+| `pending_review` | 用户已点「我已付款」，待管理员核销 |
+| `paid` | 已支付并开通权益 |
+| `expired` | 超时未付 |
+| `cancelled` | 用户取消或被新订单取代 |
 
 ## 前端入口
 

@@ -8,9 +8,20 @@ from app import db
 from app.middleware.auth import get_request_user_id, admin_required, write_audit
 from app.models import GroupInfo, User, UserProfile
 from app.services.algorithms.grouping import GroupingAlgorithm
+from app.middleware.entitlement import paywall_response
+from app.services.entitlement_service import PaywallError, get_entitlements
+from app.services.grouping_templates import list_templates, resolve_template, template_to_group_config
 
 bp = Blueprint("group", __name__)
 algo = GroupingAlgorithm()
+
+
+@bp.route("/templates", methods=["GET"])
+@jwt_required()
+def grouping_templates():
+    uid = get_request_user_id()
+    ent = get_entitlements(uid)
+    return jsonify({"templates": list_templates(plan_code=ent.get("plan_code", "free"))})
 
 
 def _profile_to_dict(prof: UserProfile) -> dict:
@@ -26,7 +37,17 @@ def create_groups():
     user_ids = data.get("user_ids") or []
     group_size = int(data.get("group_size", 4))
     config = data.get("config") or {}
+    template_id = config.get("template_id") or data.get("template_id")
+    if template_id:
+        tpl = resolve_template(template_id)
+        if tpl.get("tier") == "pro":
+            ent = get_entitlements(get_request_user_id())
+            if ent.get("plan_code") == "free":
+                return jsonify({"error": "该分组模板需升级专业版", "code": "PAYWALL", "feature": "grouping.template"}), 402
+        config = template_to_group_config(template_id, config)
     mode = config.get("mode", "heterogeneous")
+    priority = config.get("priority", "skill")
+    constraints = config.get("constraints") or {}
 
     if not user_ids:
         return jsonify({"error": "user_ids 不能为空"}), 400
@@ -41,7 +62,13 @@ def create_groups():
         return jsonify({"error": "有效画像人数不足"}), 400
 
     try:
-        result = algo.create_groups(profiles, group_size=group_size, mode=mode)
+        result = algo.create_groups(
+            profiles,
+            group_size=group_size,
+            mode=mode,
+            priority=priority,
+            constraints=constraints,
+        )
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
@@ -70,6 +97,179 @@ def create_groups():
             "balance_score": result["balance_score"],
             "complement_notes": result["complement_notes"],
             "audit_log": result["audit_log"],
+        }
+    )
+
+
+def _enrich_groups_for_ui(groups: list, profiles: list) -> list:
+    users = {p["user_id"]: p for p in profiles}
+    out = []
+    for g in groups:
+        members = []
+        for mid in g.get("member_ids") or []:
+            p = users.get(mid) or {}
+            members.append(
+                {
+                    "user_id": mid,
+                    "name": p.get("name") or User.query.get(mid).name if User.query.get(mid) else str(mid),
+                    "major": p.get("major"),
+                    "skill": p.get("skill_final") or p.get("skill_score"),
+                    "pref_role": p.get("pref_role"),
+                }
+            )
+        out.append(
+            {
+                "group_name": g["group_name"],
+                "avg_skill": g["avg_skill"],
+                "avg_knowledge": g.get("avg_knowledge"),
+                "avg_collab": g.get("avg_collab"),
+                "member_ids": g.get("member_ids"),
+                "members": members,
+                "complement_note": g.get("complement_note"),
+            }
+        )
+    return out
+
+
+@bp.route("/compare", methods=["POST"])
+@admin_required
+def compare_groups():
+    """多方案分组对比（模板驱动，不写入 DB）."""
+    from app.services.grouping_templates import GROUPING_TEMPLATES
+
+    data = request.get_json(silent=True) or {}
+    user_ids = data.get("user_ids") or []
+    group_size = int(data.get("group_size", 4))
+    template_ids = data.get("template_ids")
+    uid = get_request_user_id()
+    ent = get_entitlements(uid)
+    if ent.get("plan_code") == "free":
+        return jsonify({"error": "多方案对比需升级专业版", "code": "PAYWALL", "feature": "grouping.compare"}), 402
+    try:
+        from app.services.entitlement_service import check_limit
+
+        check_limit(uid, "grouping_scenario_monthly", increment=1)
+    except PaywallError as exc:
+        return paywall_response(exc)
+
+    profiles = []
+    for u in user_ids:
+        prof = UserProfile.query.filter_by(user_id=u).order_by(UserProfile.create_time.desc()).first()
+        if prof:
+            d = _profile_to_dict(prof)
+            u = User.query.get(u)
+            if u:
+                d["name"] = u.name
+            profiles.append(d)
+    if len(profiles) < group_size:
+        return jsonify({"error": "有效画像人数不足"}), 400
+
+    tier_rank = {"free": 0, "pro": 1, "plus": 2}
+    user_rank = tier_rank.get(ent.get("plan_code", "free"), 0)
+    compare_tpls = []
+    if template_ids:
+        for tid in template_ids:
+            tpl = resolve_template(tid)
+            if tpl:
+                compare_tpls.append(tpl)
+    else:
+        for tpl in GROUPING_TEMPLATES:
+            if tier_rank.get(tpl.get("tier", "free"), 0) <= user_rank:
+                compare_tpls.append(tpl)
+            if len(compare_tpls) >= 4:
+                break
+
+    scenarios = []
+    for tpl in compare_tpls:
+        cfg = template_to_group_config(tpl["id"], {})
+        try:
+            result = algo.create_groups(
+                profiles,
+                group_size=group_size,
+                mode=cfg.get("mode", "heterogeneous"),
+                priority=cfg.get("priority", "skill"),
+                constraints=cfg.get("constraints") or {},
+            )
+            scenarios.append(
+                {
+                    "key": tpl["id"],
+                    "label": tpl["name"],
+                    "template_id": tpl["id"],
+                    "balance_score": result["balance_score"],
+                    "skill_spread_within_groups": result.get("skill_spread_within_groups"),
+                    "config": result.get("config"),
+                    "groups": _enrich_groups_for_ui(result["groups"], profiles),
+                }
+            )
+        except ValueError as e:
+            scenarios.append({"key": tpl["id"], "label": tpl["name"], "error": str(e)})
+    from app.models import UserSubscription
+
+    sub = UserSubscription.query.filter_by(user_id=uid).first()
+    if sub:
+        sub.deep_preview_used = (sub.deep_preview_used or 0) + 1
+        db.session.commit()
+    write_audit("group_compare", detail=json.dumps({"count": len(scenarios)}))
+    return jsonify({"scenarios": scenarios})
+
+
+@bp.route("/preview", methods=["POST"])
+@admin_required
+def preview_groups():
+    """模拟分组，不写入数据库."""
+    data = request.get_json(silent=True) or {}
+    user_ids = data.get("user_ids") or []
+    group_size = int(data.get("group_size", 4))
+    config = data.get("config") or {}
+    template_id = config.get("template_id") or data.get("template_id")
+    if template_id:
+        tpl = resolve_template(template_id)
+        if tpl.get("tier") == "pro":
+            ent = get_entitlements(get_request_user_id())
+            if ent.get("plan_code") == "free":
+                return jsonify({"error": "该分组模板需升级专业版", "code": "PAYWALL", "feature": "grouping.template"}), 402
+        config = template_to_group_config(template_id, config)
+    mode = config.get("mode", "heterogeneous")
+    priority = config.get("priority", "skill")
+    constraints = config.get("constraints") or {}
+
+    if not user_ids:
+        return jsonify({"error": "user_ids 不能为空"}), 400
+
+    profiles = []
+    for uid in user_ids:
+        prof = UserProfile.query.filter_by(user_id=uid).order_by(UserProfile.create_time.desc()).first()
+        if prof:
+            profiles.append(_profile_to_dict(prof))
+
+    if len(profiles) < group_size:
+        return jsonify({"error": "有效画像人数不足"}), 400
+
+    try:
+        result = algo.create_groups(
+            profiles,
+            group_size=group_size,
+            mode=mode,
+            priority=priority,
+            constraints=constraints,
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    major_dist = {}
+    for g in result["groups"]:
+        for m in g.get("members") or []:
+            maj = m.get("major") or "未知"
+            major_dist[maj] = major_dist.get(maj, 0) + 1
+
+    return jsonify(
+        {
+            "preview": True,
+            "groups": _enrich_groups_for_ui(result["groups"], profiles),
+            "balance_score": result["balance_score"],
+            "skill_spread_within_groups": result.get("skill_spread_within_groups"),
+            "config": result["config"],
+            "major_distribution": major_dist,
         }
     )
 

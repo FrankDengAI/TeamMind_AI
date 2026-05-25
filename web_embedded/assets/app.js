@@ -1230,6 +1230,15 @@ const App = {
       return navItems.value.find((n) => n.key === page.value) || navItems.value[0]
     })
     const personalAlerts = computed(() => personal.value.alerts || [])
+    const taskViewMode = ref('list')
+    const kanbanTasks = computed(() => {
+      const tasks = personal.value.tasks || []
+      return {
+        pending: tasks.filter((t) => (t.progress || 0) < 1 && t.status !== 'in_progress'),
+        in_progress: tasks.filter((t) => (t.progress || 0) > 0 && (t.progress || 0) < 100 && t.status !== 'done'),
+        done: tasks.filter((t) => (t.progress || 0) >= 100 || t.status === 'done'),
+      }
+    })
     const currentActivity = computed(() => activities.value.find((a) => a.id === selectedActivityId.value) || activities.value[0] || null)
     const myGroup = computed(() => currentActivity.value?.my_group || groups.value[0] || null)
     const myParticipant = computed(() => currentActivity.value?.my_participant || null)
@@ -1595,6 +1604,18 @@ const App = {
       await http.post(`/chat/conversations/${conv.id}/read`)
     }
 
+    async function openGroupChannel() {
+      if (!myGroup.value?.id) return
+      try {
+        const { data } = await http.get(`/chat/groups/${myGroup.value.id}/conversation`)
+        await loadConversations()
+        await openConversation(data)
+        page.value = 'messages'
+      } catch (e) {
+        ElementPlus.ElMessage.error(e.response?.data?.error || t('无法打开小组频道'))
+      }
+    }
+
     async function startChat(targetId) {
       const { data } = await http.post('/chat/conversations', { target_user_id: targetId })
       await loadConversations()
@@ -1705,6 +1726,7 @@ const App = {
       }
       if (active?.mode === 'free_team') await loadActivityTeams()
       else activityTeams.value = []
+      await loadMyMilestones()
     }
 
     async function joinActivity(activity = currentActivity.value) {
@@ -1851,6 +1873,29 @@ const App = {
       }
     }
 
+    function onKanbanDragStart(ev, taskId) {
+      ev.dataTransfer.setData('text/task-id', String(taskId))
+    }
+    async function onKanbanDrop(ev, targetStatus) {
+      const taskId = Number(ev.dataTransfer.getData('text/task-id'))
+      if (!taskId) return
+      let progress = 0
+      if (targetStatus === 'in_progress') progress = 50
+      if (targetStatus === 'done') progress = 100
+      await updateProgress(taskId, progress)
+      await loadPersonal()
+    }
+
+    const activityMilestones = ref([])
+    async function loadMyMilestones() {
+      const actId = personal.value?.activity?.id || myGroup.value?.activity_id
+      if (!actId) return
+      try {
+        const { data } = await http.get(`/milestone/activity/${actId}`)
+        activityMilestones.value = data
+      } catch { activityMilestones.value = [] }
+    }
+
     async function updateProgress(taskId, progress) {
       loading.value = true
       try {
@@ -1984,7 +2029,8 @@ const App = {
       tagCatalog, displayTagCatalog, activeTags, customTag, profileTab, resumeFile, calculating, calculateProgress, calculateText,
       communityFeed, postForm, postMedia, commentInputs, expandedComments,
       conversations, messages, chatTargetId, chatConversationId, chatInput,
-      currentNav, personalAlerts, myGroup, myTeamRole, teammates,
+      currentNav, personalAlerts, taskViewMode, kanbanTasks, myGroup, myTeamRole, teammates,
+      onKanbanDragStart, onKanbanDrop,
       language, LANGUAGE_OPTIONS, t, setLanguage,
       ADMIN_PORTAL_URL, scorePct, scoreStyle, scoreLevel, userInitial, userAvatar, activityDisplayTitle, displayDemoText, formatGroupingAdviceText, formatDynamicText, formatInsightText, formatActivityStatus, demoImageFallback, riskTagType, formatDeadline,
       roleTitle, roleCandidates, roleSummary, positiveInsights, profileSuggestion,
@@ -1995,7 +2041,8 @@ const App = {
       loadActivities, joinActivity, syncActivityTags, loadActivityTeams, createTeamRoom, requestJoinTeam, handleJoinRequest, leaveTeamRoom,
       submitTeamConfirmation,
       isTagSelected, groupedTags, hotTags, tagNamesByDimension, setTagsForDimension,
-      toggleTag, addCustomTag, createPost, onPostMedia, interactPost, toggleComments, submitComment, openConversation, startChat, sendMessage,
+      toggleTag, addCustomTag, createPost, onPostMedia, interactPost, toggleComments, submitComment, openConversation, startChat, openGroupChannel, sendMessage,
+      activityMilestones, loadMyMilestones,
     }
   },
   template: `
@@ -2386,6 +2433,21 @@ const App = {
                 </el-select>
               </div>
 
+              <div v-if="activityMilestones.length" class="card milestone-strip-card">
+                <h4>{{ t('课程里程碑') }}</h4>
+                <div class="milestone-list">
+                  <div v-for="m in activityMilestones" :key="m.id" class="milestone-chip" :class="m.status">
+                    <strong>{{ m.title }}</strong>
+                    <span>{{ m.due_at || '' }}</span>
+                    <el-tag size="small">{{ formatActivityStatus(m.status) }}</el-tag>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="myGroup?.id" class="card">
+                <el-button type="primary" plain @click="openGroupChannel">{{ t('进入小组频道') }}</el-button>
+              </div>
+
               <div v-if="currentActivity?.mode==='free_team' && myParticipant" class="card">
                 <div class="card-header"><h3>{{ t('组队大厅') }}</h3><el-button @click="loadActivityTeams">{{ t('刷新') }}</el-button></div>
                 <div v-if="!myRoom" class="free-create-box">
@@ -2577,9 +2639,41 @@ const App = {
               </div>
             </div>
             <div class="card">
-              <h3>{{ t('我的子任务') }}</h3>
-              <p class="hint">{{ t('系统按你的能力与偏好分配子任务。请更新完成百分比；逾期或滞后会在上方预警，队友在团队页可见你的进度。') }}</p>
-              <el-table v-if="(personal.tasks||[]).length" :data="personal.tasks" stripe>
+              <div class="card-header">
+                <div>
+                  <h3>{{ t('我的子任务') }}</h3>
+                  <p class="hint">{{ t('系统按你的能力与偏好分配子任务。请更新完成百分比；逾期或滞后会在上方预警，队友在团队页可见你的进度。') }}</p>
+                </div>
+                <el-radio-group v-model="taskViewMode" size="small">
+                  <el-radio-button label="list">{{ t('列表') }}</el-radio-button>
+                  <el-radio-button label="kanban">{{ t('看板') }}</el-radio-button>
+                </el-radio-group>
+              </div>
+              <div v-if="taskViewMode==='kanban' && (personal.tasks||[]).length" class="kanban-board">
+                <div class="kanban-col" @dragover.prevent @drop="onKanbanDrop($event, 'pending')">
+                  <h4>{{ t('待开始') }}</h4>
+                  <div v-for="row in kanbanTasks.pending" :key="row.id" class="kanban-card" draggable="true" @dragstart="onKanbanDragStart($event, row.id)">
+                    <strong>{{ formatDynamicText(row.task_name) }}</strong>
+                    <el-progress :percentage="row.progress||0" :stroke-width="6" />
+                    <el-button size="small" type="primary" plain @click="updateProgress(row.id, Math.min(100,(row.progress||0)+25))">+25%</el-button>
+                  </div>
+                </div>
+                <div class="kanban-col" @dragover.prevent @drop="onKanbanDrop($event, 'in_progress')">
+                  <h4>{{ t('进行中') }}</h4>
+                  <div v-for="row in kanbanTasks.in_progress" :key="row.id" class="kanban-card" draggable="true" @dragstart="onKanbanDragStart($event, row.id)">
+                    <strong>{{ formatDynamicText(row.task_name) }}</strong>
+                    <el-progress :percentage="row.progress||0" :stroke-width="6" />
+                    <el-button size="small" type="primary" @click="updateProgress(row.id, 100)">{{ t('完成') }}</el-button>
+                  </div>
+                </div>
+                <div class="kanban-col" @dragover.prevent @drop="onKanbanDrop($event, 'done')">
+                  <h4>{{ t('已完成') }}</h4>
+                  <div v-for="row in kanbanTasks.done" :key="row.id" class="kanban-card done" draggable="true" @dragstart="onKanbanDragStart($event, row.id)">
+                    <strong>{{ formatDynamicText(row.task_name) }}</strong>
+                  </div>
+                </div>
+              </div>
+              <el-table v-else-if="(personal.tasks||[]).length" :data="personal.tasks" stripe>
                 <el-table-column :label="t('子任务')" min-width="140"><template #default="{row}">{{ formatDynamicText(row.task_name) }}</template></el-table-column>
                 <el-table-column :label="t('分配依据')" min-width="200">
                   <template #default="{row}"><span class="explain-text">{{ formatDynamicText(row.assign_reason) || '—' }}</span></template>
@@ -2665,7 +2759,8 @@ const App = {
             <div class="card">
               <h3>{{ t('会话列表') }}</h3>
               <el-table :data="conversations" :empty-text="t('暂无会话，可在学习社区中给同学发消息')">
-                <el-table-column :label="t('同学')"><template #default="{row}">{{ row.other_user?.name || (t('用户') + row.other_user_id) }}</template></el-table-column>
+                <el-table-column :label="t('会话')"><template #default="{row}">{{ row.title || row.group?.group_name || row.other_user?.name || (t('用户') + row.other_user_id) }}</template></el-table-column>
+                <el-table-column :label="t('类型')" width="90"><template #default="{row}"><el-tag size="small">{{ row.group_id || row.group ? t('小组频道') : t('私聊') }}</el-tag></template></el-table-column>
                 <el-table-column :label="t('最后消息')"><template #default="{row}">{{ row.last_message?.content || '—' }}</template></el-table-column>
                 <el-table-column :label="t('未读')" width="80"><template #default="{row}"><el-tag v-if="row.unread">{{ row.unread }}</el-tag></template></el-table-column>
                 <el-table-column :label="t('操作')" width="120"><template #default="{row}"><el-button size="small" @click="openConversation(row)">{{ t('打开') }}</el-button></template></el-table-column>
@@ -2675,7 +2770,7 @@ const App = {
               <h3>{{ t('聊天') }}</h3>
               <div style="max-height:360px;overflow:auto;border:1px solid #e5e7eb;border-radius:12px;padding:12px">
                 <div v-for="m in messages" :key="m.id" :style="{textAlign:m.sender_id===user?.id?'right':'left',margin:'8px 0'}">
-                  <span style="display:inline-block;background:#f1f5f9;padding:8px 12px;border-radius:12px">{{ m.content }}</span>
+                  <span :style="{display:'inline-block',padding:'8px 12px',borderRadius:'12px',background: m.msg_type==='system_nudge' ? '#fef3c7' : '#f1f5f9',border: m.msg_type==='system_nudge' ? '1px solid #fcd34d' : 'none'}">{{ m.content }}</span>
                 </div>
               </div>
               <div style="display:flex;gap:8px;margin-top:12px">

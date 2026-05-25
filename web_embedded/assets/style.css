@@ -1595,3 +1595,18 @@ body {
     justify-content: flex-start;
   }
 }
+
+.kanban-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+.kanban-col { background: #f8fafc; border-radius: 12px; padding: 10px; min-height: 120px; }
+.kanban-col h4 { margin: 0 0 10px; font-size: 13px; color: #64748b; }
+.kanban-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; margin-bottom: 8px; cursor: grab; }
+.milestone-list { display: flex; flex-wrap: wrap; gap: 10px; }
+.milestone-chip { padding: 10px 14px; border-radius: 10px; background: #f1f5f9; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.milestone-chip.active { background: #eef2ff; border-color: #a5b4fc; }
+.milestone-chip.done { background: #dcfce7; }
+.milestone-strip-card { margin-top: 12px; }
+.kanban-card.done { opacity: 0.85; }
+.kanban-card strong { display: block; margin-bottom: 8px; font-size: 14px; }
+@media (max-width: 768px) {
+  .kanban-board { grid-template-columns: 1fr; }
+}

@@ -21,6 +21,9 @@ def register_blueprints(app):
     from app.api.team_activity import admin_bp as admin_team_activity_bp
     from app.api.team_activity import bp as team_activity_bp
     from app.api.billing import bp as billing_bp
+    from app.api.copilot import bp as copilot_bp
+    from app.api.rubric import bp as rubric_bp
+    from app.api.milestone import bp as milestone_bp
 
     app.register_blueprint(health_bp)
     app.register_blueprint(access_bp)
@@ -32,6 +35,7 @@ def register_blueprints(app):
     app.register_blueprint(behavior_bp, url_prefix="/api/behavior")
     app.register_blueprint(community_bp, url_prefix="/api/community")
     app.register_blueprint(chat_bp, url_prefix="/api/chat")
+    app.register_blueprint(copilot_bp, url_prefix="/api/copilot")
     app.register_blueprint(classroom_bp, url_prefix="/api")
     app.register_blueprint(board_bp, url_prefix="/api/board")
     app.register_blueprint(team_activity_bp, url_prefix="/api/team-activities")
@@ -41,3 +45,5 @@ def register_blueprints(app):
     app.register_blueprint(admin_community_bp, url_prefix="/api/admin")
     app.register_blueprint(report_bp, url_prefix="/api/report")
     app.register_blueprint(export_bp, url_prefix="/api/export")
+    app.register_blueprint(rubric_bp, url_prefix="/api/rubric")
+    app.register_blueprint(milestone_bp, url_prefix="/api/milestone")

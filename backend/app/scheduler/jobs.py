@@ -44,6 +44,20 @@ def run_periodic_adjust(app=None):
         db.session.commit()
 
 
+def run_expire_billing_orders(app=None):
+    """将超时未支付的订单标记为过期."""
+    if app is None:
+        from flask import current_app
+
+        app = current_app._get_current_object()
+    with app.app_context():
+        from app.services.billing_service import expire_stale_orders
+
+        n = expire_stale_orders()
+        if n:
+            logger.info("Expired %d pending billing orders", n)
+
+
 def start_scheduler(app):
     """启动调度器."""
     if app.config.get("TESTING"):
@@ -56,6 +70,7 @@ def start_scheduler(app):
     days = app.config.get("DEFAULT_ADJUST_DAYS", 7)
     scheduler = BackgroundScheduler()
     scheduler.add_job(run_periodic_adjust, "interval", days=days, id="task_adjust", args=[app], replace_existing=True)
+    scheduler.add_job(run_expire_billing_orders, "interval", minutes=10, id="billing_expire", args=[app], replace_existing=True)
     scheduler.start()
     app.extensions["teammind_scheduler"] = scheduler
     return scheduler

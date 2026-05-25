@@ -68,3 +68,43 @@ def export_data(resource_type):
     if preview:
         headers["X-TeamMind-Export-Mode"] = "preview"
     return Response(data, mimetype=mime, headers=headers)
+
+
+@bp.route("/super-group-report", methods=["GET"])
+@admin_required
+def super_group_report():
+    """超级分组报告 PDF（加购或 Pro 活动）."""
+    from app.models import Classroom
+    from app.services.classroom_insights import build_class_health, build_nudge_list
+
+    class_id = request.args.get("class_id", type=int)
+    activity_id = request.args.get("activity_id", type=int)
+    uid = get_request_user_id()
+    ent = get_entitlements(uid)
+    if not ent.get("flags", {}).get("export_full"):
+        return jsonify({"error": "超级分组报告需升级专业版", "code": "PAYWALL", "feature": "super_group_report"}), 402
+    cls = Classroom.query.get(class_id) if class_id else None
+    groups_q = GroupInfo.query
+    if activity_id:
+        groups_q = groups_q.filter_by(activity_id=activity_id)
+    elif class_id:
+        from app.models import TeamActivity
+
+        act_ids = [a.id for a in TeamActivity.query.filter_by(class_id=class_id).all()]
+        groups_q = groups_q.filter(GroupInfo.activity_id.in_(act_ids)) if act_ids else groups_q.filter(False)
+    groups = groups_q.all()
+    health = build_class_health(class_id) if class_id else {"health_score": 0, "profile_completion_rate": 0, "task_completion_rate": 0, "overdue_tasks": 0}
+    nudges = build_nudge_list(class_id).get("summary") if class_id else {}
+    data = exporter.export_super_group_report(
+        class_name=cls.name if cls else "班级报告",
+        health=health,
+        groups=[g.to_dict() for g in groups],
+        nudge_summary=nudges,
+        watermark=not ent["flags"]["export_full"],
+    )
+    write_audit("export_super_group", "classroom", class_id)
+    return Response(
+        data,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=super_group_report.pdf"},
+    )

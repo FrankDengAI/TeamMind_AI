@@ -36,7 +36,11 @@ def assign_roles_for_group(member_profiles: list[dict]) -> list[dict]:
     assignments = []
 
     # 按技能分排序，高技能优先选稀缺角色
-    sorted_members = sorted(member_profiles, key=lambda m: m.get("skill_score", 0), reverse=True)
+    sorted_members = sorted(
+        member_profiles,
+        key=lambda m: float(m.get("skill_final") or m.get("skill_score") or 0),
+        reverse=True,
+    )
 
     for m in sorted_members:
         uid = m.get("user_id")

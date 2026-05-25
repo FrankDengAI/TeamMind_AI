@@ -555,6 +555,22 @@ Object.assign(ADMIN_TEXT_I18N.en, {
   渠道: 'Channel',
   状态: 'Status',
   核销: 'Fulfill',
+  待核销订单: 'Orders pending review',
+  待核销: 'Pending review',
+  应付金额: 'Amount due',
+  复制: 'Copy',
+  订单号已复制: 'Order number copied',
+  取消订单: 'Cancel order',
+  订单已取消: 'Order cancelled',
+  已提交核销: 'Submitted for review',
+  '已提交核销，请等待管理员确认': 'Submitted — waiting for admin confirmation',
+  '开发环境：点击「我已付款」将自动开通': 'Dev: click “I have paid” to activate instantly',
+  '收款码未配置，请联系管理员设置 BILLING_WECHAT_QR_URL / BILLING_ALIPAY_QR_URL': 'Payment QR not configured — set BILLING_WECHAT_QR_URL / BILLING_ALIPAY_QR_URL',
+  '扫码支付后点击「我已付款」，管理员将在「订阅与订单」页核销': 'Pay via QR, then click “I have paid”; admin fulfills under Billing & Orders',
+  未配置微信收款码: 'WeChat QR not configured',
+  未配置支付宝收款码: 'Alipay QR not configured',
+  省: 'Save ',
+  '/年': '/year',
   'AI 用量统计': 'AI usage',
   '累计消耗 {points} 点 · 预估 API 成本 ¥{cost}': 'Total used {points} credits · Est. API cost ¥{cost}',
   功能: 'Feature',
@@ -619,6 +635,25 @@ Object.assign(ADMIN_TEXT_I18N.en, {
   '升级 Pro 解锁完整 DeepSeek 分析': 'Upgrade to Pro to unlock full DeepSeek analysis',
   '当前为 AI 预览，升级 Pro 查看完整 DeepSeek 分析': 'AI preview only — upgrade to Pro for full DeepSeek analysis',
   '当前为预览导出（前 5 行 + 水印），升级 Pro 下载完整文件': 'Preview export only (first 5 rows + watermark). Upgrade to Pro for full file.',
+  班级健康度: 'Class health',
+  学期时间轴: 'Semester timeline',
+  班级 Copilot: 'Class Copilot',
+  一键催办: 'Send nudges',
+  预览分组效果: 'Preview grouping',
+  多方案对比: 'Compare scenarios',
+  超级分组报告: 'Super group report',
+  健康分构成: 'Health breakdown',
+  过程评价: 'Rubric scoring',
+  任务模板市场: 'Task template market',
+  活动里程碑: 'Activity milestones',
+  小组频道: 'Group channel',
+  组内看板: 'Team kanban',
+  预览均衡分: 'Preview balance score',
+  应用此方案: 'Apply this plan',
+  暂无健康度数据: 'No health data yet — add students and refresh.',
+  '将向待催办学生发送站内提醒，确定继续？': 'Send in-app reminders to selected students?',
+  已发送: 'Sent to',
+  人: 'recipients',
 })
 
 ADMIN_TEXT_I18N.ja = {
@@ -1034,6 +1069,25 @@ const App = {
     })
     const classMemberForm = ref({ user_ids: [] })
     const classAdviceGroupSize = ref(4)
+    const groupingTemplates = ref([])
+    const selectedGroupingTemplate = ref('heterogeneous_balanced')
+    const classHealth = ref(null)
+    const classNudges = ref(null)
+    const classTimeline = ref([])
+    const copilotVisible = ref(false)
+    const copilotQuestion = ref('')
+    const copilotMessages = ref([])
+    const copilotLoading = ref(false)
+    const copilotSuggestedQuestions = ref([])
+    const groupingPreview = ref(null)
+    const groupingCompare = ref(null)
+    const rubrics = ref([])
+    const taskTemplateMarket = ref([])
+    const nudgeSelection = ref([])
+    const selectedCompareKey = ref('')
+    const activityMilestones = ref([])
+    const milestoneForm = ref({ title: '', due_at: '' })
+    const activeRubricId = ref(null)
     const activityForm = ref({
       title: '',
       course_name: '',
@@ -1053,7 +1107,10 @@ const App = {
     const language = ref(ADMIN_I18N[DEFAULT_APP_LANG] ? DEFAULT_APP_LANG : 'zh-CN')
     const entitlements = ref(null)
     const billingPlans = ref([])
+    const billingAddons = ref([])
     const billingOrders = ref([])
+    const billingPendingReview = ref(0)
+    const billingConfig = ref(null)
     const billingUsage = ref(null)
     const upgradeVisible = ref(false)
     const upgradeContext = ref({ feature: '' })
@@ -1251,6 +1308,15 @@ const App = {
     const classRequests = computed(() => classDetail.value?.requests || [])
     const classActivities = computed(() => classDetail.value?.activities || [])
     const classPendingRequests = computed(() => classRequests.value.filter((r) => r.status === 'pending'))
+    const teacherKanbanTasks = computed(() => {
+      const tasks = teamDash.value?.tasks || []
+      return {
+        pending: tasks.filter((t) => (t.progress || 0) < 1 && t.status !== 'in_progress' && t.status !== 'done'),
+        in_progress: tasks.filter((t) => ((t.progress || 0) > 0 && (t.progress || 0) < 100) || t.status === 'in_progress'),
+        done: tasks.filter((t) => (t.progress || 0) >= 100 || t.status === 'done'),
+      }
+    })
+    const activeRubric = computed(() => rubrics.value.find((r) => r.id === activeRubricId.value) || rubrics.value[0] || null)
     const classAdvice = computed(() => selectedClass.value?.grouping_advice || {})
     const selectedClassAdviceSummary = computed(() => {
       void language.value
@@ -1294,6 +1360,15 @@ const App = {
     async function loadBillingPlans() {
       const { data } = await http.get('/billing/plans')
       billingPlans.value = data.plans || []
+      billingAddons.value = data.addons || []
+      if (data.config) billingConfig.value = data.config
+    }
+
+    async function loadBillingConfig() {
+      try {
+        const { data } = await http.get('/billing/config')
+        billingConfig.value = data
+      } catch { /* ignore */ }
     }
 
     function localizedBillingPlan(p) {
@@ -1324,7 +1399,8 @@ const App = {
 
     async function loadBillingOrders() {
       const { data } = await http.get('/admin/billing/orders')
-      billingOrders.value = data
+      billingOrders.value = data.orders || data || []
+      billingPendingReview.value = data.pending_review_count || 0
     }
 
     async function loadBillingUsage() {
@@ -1335,8 +1411,35 @@ const App = {
     function openUpgrade(ctx = {}) {
       upgradeContext.value = ctx
       upgradeVisible.value = true
+      activeOrder.value = null
       loadBillingPlans()
+      loadBillingConfig()
     }
+
+    function orderStatusLabel(row) {
+      return row.status_label || row.status || ''
+    }
+
+    function copyOrderNo(no) {
+      if (!no) return
+      const done = () => ElementPlus.ElMessage.success(t('订单号已复制'))
+      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(no).then(done).catch(() => {})
+      else done()
+    }
+
+    const selectedPlanPrice = computed(() => {
+      const p = billingPlans.value.find((x) => x.code === upgradePlanCode.value)
+      if (!p) return null
+      return upgradePeriod.value === 'year' ? p.price_year : p.price_month
+    })
+
+    const paymentHint = computed(() => {
+      const cfg = billingConfig.value
+      if (!cfg) return ''
+      if (cfg.dev_auto_pay) return t('开发环境：点击「我已付款」将自动开通')
+      if (!cfg.payment_ready) return t('收款码未配置，请联系管理员设置 BILLING_WECHAT_QR_URL / BILLING_ALIPAY_QR_URL')
+      return t('扫码支付后点击「我已付款」，管理员将在「订阅与订单」页核销')
+    })
 
     function stopOrderPoll() {
       if (orderPollTimer) {
@@ -1350,9 +1453,13 @@ const App = {
       activeOrder.value = data
       if (data.status === 'paid') {
         stopOrderPoll()
-        ElementPlus.ElMessage.success('支付成功，权益已开通')
+        ElementPlus.ElMessage.success(t('支付成功，权益已开通'))
         await loadEntitlements()
         upgradeVisible.value = false
+      }
+      if (data.status === 'pending_review') {
+        stopOrderPoll()
+        ElementPlus.ElMessage.info(t('已提交核销，请等待管理员确认'))
       }
       if (data.status === 'expired' || data.status === 'cancelled') stopOrderPoll()
     }
@@ -1368,7 +1475,7 @@ const App = {
         activeOrder.value = data
         stopOrderPoll()
         orderPollTimer = setInterval(() => pollOrderStatus(data.id), 2000)
-        ElementPlus.ElMessage.info('请扫码支付，支付后点击「我已付款」或等待自动确认')
+        ElementPlus.ElMessage.info(paymentHint.value || t('请扫码支付'))
       } finally {
         loading.value = false
       }
@@ -1378,12 +1485,36 @@ const App = {
       if (!activeOrder.value?.id) return
       loading.value = true
       try {
-        const { data } = await http.post(`/billing/orders/${activeOrder.value.id}/confirm-paid`, { confirm: true })
+        const res = await http.post(`/billing/orders/${activeOrder.value.id}/confirm-paid`, {})
+        const data = res.data
+        activeOrder.value = data.order || activeOrder.value
         if (data.entitlements) entitlements.value = data.entitlements
-        ElementPlus.ElMessage.success(data.message || '已确认')
-        upgradeVisible.value = false
-        stopOrderPoll()
+        if (res.status === 202 || data.order?.status === 'pending_review') {
+          ElementPlus.ElMessage.info(data.message || t('已提交核销'))
+          stopOrderPoll()
+        } else {
+          ElementPlus.ElMessage.success(data.message || t('已确认'))
+          upgradeVisible.value = false
+          stopOrderPoll()
+        }
         await loadEntitlements()
+      } catch (e) {
+        ElementPlus.ElMessage.error(e.response?.data?.error || t('提交失败'))
+      } finally {
+        loading.value = false
+      }
+    }
+
+    async function cancelActiveOrder() {
+      if (!activeOrder.value?.id) return
+      loading.value = true
+      try {
+        await http.post(`/billing/orders/${activeOrder.value.id}/cancel`)
+        activeOrder.value = null
+        stopOrderPoll()
+        ElementPlus.ElMessage.success(t('订单已取消'))
+      } catch (e) {
+        ElementPlus.ElMessage.error(e.response?.data?.error || t('取消失败'))
       } finally {
         loading.value = false
       }
@@ -1579,6 +1710,233 @@ const App = {
       if (!activityForm.value.class_id && data.length) activityForm.value.class_id = data[0].id
     }
 
+    async function loadGroupingTemplates() {
+      try {
+        const { data } = await http.get('/group/templates')
+        groupingTemplates.value = data.templates || []
+        if (!groupingTemplates.value.find((x) => x.id === selectedGroupingTemplate.value)) {
+          selectedGroupingTemplate.value = groupingTemplates.value[0]?.id || 'heterogeneous_balanced'
+        }
+      } catch { groupingTemplates.value = [] }
+    }
+
+    async function loadClassHealth() {
+      if (!selectedClassId.value) return
+      try {
+        const { data } = await http.get(`/admin/classes/${selectedClassId.value}/health`)
+        classHealth.value = data
+        if (data.timeline) classTimeline.value = data.timeline
+      } catch { classHealth.value = null }
+    }
+
+    async function loadClassNudges() {
+      if (!selectedClassId.value) return
+      try {
+        const { data } = await http.get(`/admin/classes/${selectedClassId.value}/nudges`)
+        classNudges.value = data
+      } catch { classNudges.value = null }
+    }
+
+    async function saveClassTimeline() {
+      if (!selectedClassId.value) return
+      loading.value = true
+      try {
+        await http.put(`/admin/classes/${selectedClassId.value}/timeline`, { timeline: classTimeline.value })
+        ElementPlus.ElMessage.success(t('时间轴已保存'))
+      } catch (e) {
+        ElementPlus.ElMessage.error(e.response?.data?.error || t('保存失败'))
+        if (e.response?.status === 402) openUpgrade({ feature: 'timeline.edit' })
+      } finally { loading.value = false }
+    }
+
+    async function loadCopilotSuggestions() {
+      if (!selectedClassId.value) return
+      try {
+        const { data } = await http.get(`/copilot/class/${selectedClassId.value}/suggestions`)
+        copilotSuggestedQuestions.value = data.questions || []
+      } catch { copilotSuggestedQuestions.value = [] }
+    }
+
+    async function sendClassCopilot(preset) {
+      const q = (preset || copilotQuestion.value || '').trim()
+      if (!q || !selectedClassId.value) return
+      copilotLoading.value = true
+      copilotMessages.value.push({ role: 'user', text: q })
+      copilotQuestion.value = ''
+      const history = copilotMessages.value
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .slice(-6)
+        .map((m) => ({ role: m.role, content: m.text }))
+      try {
+        const { data } = await http.post(`/copilot/class/${selectedClassId.value}/ask`, { question: q, history })
+        copilotMessages.value.push({ role: 'assistant', text: data.answer, source: data.source, evidence: data.evidence })
+        if (data.evidence?.length) {
+          copilotMessages.value.push({
+            role: 'evidence',
+            text: data.evidence.map((e) => `${e.name}：标签 ${(e.tag_names || []).join('、') || '—'}；行为记录 ${e.behavior_log_count || 0} 条${e.reason ? '；' + e.reason : ''}`).join('\n'),
+          })
+        }
+        if (data.suggestions?.length) {
+          copilotMessages.value.push({ role: 'hint', text: data.suggestions.join(' · ') })
+        }
+        if (data.suggested_questions?.length) copilotSuggestedQuestions.value = data.suggested_questions
+      } catch (e) {
+        if (e.response?.status === 402) openUpgrade({ feature: 'class.copilot' })
+        else ElementPlus.ElMessage.error(e.response?.data?.error || t('Copilot 请求失败'))
+      } finally { copilotLoading.value = false }
+    }
+
+    async function sendClassNudges() {
+      if (!selectedClassId.value) return
+      try {
+        await adminConfirm(t('将向待催办学生发送站内提醒，确定继续？'), t('一键催办'))
+      } catch { return }
+      loading.value = true
+      try {
+        const payload = nudgeSelection.value.length ? { user_ids: nudgeSelection.value } : {}
+        const { data } = await http.post(`/admin/classes/${selectedClassId.value}/nudges/send`, payload)
+        ElementPlus.ElMessage.success(t('已发送') + ` ${data.sent || 0} ` + t('人'))
+      } catch (e) {
+        if (e.response?.status === 402) openUpgrade({ feature: 'class.nudge_send' })
+        else ElementPlus.ElMessage.error(e.response?.data?.error || t('发送失败'))
+      } finally { loading.value = false }
+    }
+
+    async function previewGrouping() {
+      const memberIds = (classDetail.value?.members || []).map((m) => m.user?.id).filter(Boolean)
+      if (memberIds.length < 3) return ElementPlus.ElMessage.warning(t('班级成员不足，无法预览'))
+      loading.value = true
+      try {
+        const { data } = await http.post('/group/preview', {
+          user_ids: memberIds,
+          group_size: classAdviceGroupSize.value,
+          config: { template_id: selectedGroupingTemplate.value },
+        })
+        groupingPreview.value = data
+        ElementPlus.ElMessage.success(t('预览完成，均衡分') + ` ${data.balance_score}`)
+      } catch (e) {
+        if (e.response?.status === 402) openUpgrade({ feature: 'grouping.template' })
+        else ElementPlus.ElMessage.error(e.response?.data?.error || t('预览失败'))
+      } finally { loading.value = false }
+    }
+
+    async function compareGroupingScenarios() {
+      const memberIds = (classDetail.value?.members || []).map((m) => m.user?.id).filter(Boolean)
+      if (memberIds.length < 3) return ElementPlus.ElMessage.warning(t('班级成员不足'))
+      loading.value = true
+      try {
+        const { data } = await http.post('/group/compare', { user_ids: memberIds, group_size: classAdviceGroupSize.value })
+        groupingCompare.value = data.scenarios
+      } catch (e) {
+        if (e.response?.status === 402) openUpgrade({ feature: 'grouping.compare' })
+        else ElementPlus.ElMessage.error(e.response?.data?.error || t('对比失败'))
+      } finally { loading.value = false }
+    }
+
+    async function exportSuperGroupReport() {
+      if (!selectedClassId.value) return
+      try {
+        const res = await http.get('/export/super-group-report', { params: { class_id: selectedClassId.value }, responseType: 'blob' })
+        const url = URL.createObjectURL(new Blob([res.data]))
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'super_group_report.pdf'
+        a.click()
+        URL.revokeObjectURL(url)
+      } catch (e) {
+        if (e.response?.status === 402) openUpgrade({ feature: 'super_group_report' })
+        else ElementPlus.ElMessage.error(t('导出失败'))
+      }
+    }
+
+    async function loadRubrics() {
+      if (!selectedClassId.value) return
+      try {
+        const { data } = await http.get(`/rubric/class/${selectedClassId.value}`)
+        rubrics.value = data
+        if (!activeRubricId.value && data.length) activeRubricId.value = data[0].id
+      } catch { rubrics.value = [] }
+    }
+
+    async function createDefaultRubric() {
+      if (!selectedClassId.value) return
+      loading.value = true
+      try {
+        const { data } = await http.post(`/rubric/class/${selectedClassId.value}`, { title: t('过程评价量表') })
+        rubrics.value = [data, ...rubrics.value]
+        activeRubricId.value = data.id
+        ElementPlus.ElMessage.success(t('已创建量表'))
+      } catch (e) {
+        if (e.response?.status === 402) openUpgrade({ feature: 'rubric' })
+        else ElementPlus.ElMessage.error(e.response?.data?.error || t('创建失败'))
+      } finally { loading.value = false }
+    }
+
+    async function saveRubricScore(member, scores) {
+      const rub = activeRubric.value
+      const gid = opsGroupId.value || activityGroups.value[0]?.id
+      if (!rub || !gid || !member?.user_id) return
+      await http.post(`/rubric/${rub.id}/scores`, { group_id: gid, target_user_id: member.user_id, scores })
+      ElementPlus.ElMessage.success(t('已保存评分'))
+    }
+
+    async function loadTaskTemplateMarket() {
+      try {
+        const { data } = await http.get('/admin/task-templates/market')
+        taskTemplateMarket.value = data.templates || []
+      } catch { taskTemplateMarket.value = [] }
+    }
+
+    async function loadActivityMilestones() {
+      if (!selectedActivityId.value) return
+      try {
+        const { data } = await http.get(`/milestone/activity/${selectedActivityId.value}`)
+        activityMilestones.value = data
+      } catch { activityMilestones.value = [] }
+    }
+
+    async function addActivityMilestone() {
+      if (!selectedActivityId.value || !milestoneForm.value.title.trim()) return
+      loading.value = true
+      try {
+        await http.post(`/milestone/activity/${selectedActivityId.value}`, milestoneForm.value)
+        milestoneForm.value = { title: '', due_at: '' }
+        await loadActivityMilestones()
+        ElementPlus.ElMessage.success(t('里程碑已添加'))
+      } finally { loading.value = false }
+    }
+
+    function applyCompareTemplate(key) {
+      selectedCompareKey.value = key
+      const sc = (groupingCompare.value || []).find((x) => x.key === key)
+      if (sc?.template_id) selectedGroupingTemplate.value = sc.template_id
+    }
+
+    function onNudgeSelectionChange(rows) {
+      nudgeSelection.value = (rows || []).map((r) => r.user_id)
+    }
+
+    async function teacherKanbanDrop(ev, status) {
+      const taskId = Number(ev.dataTransfer.getData('text/task-id'))
+      if (!taskId || !opsGroupId.value) return
+      let progress = 0
+      let st = 'pending'
+      if (status === 'in_progress') { progress = 50; st = 'in_progress' }
+      if (status === 'done') { progress = 100; st = 'done' }
+      loading.value = true
+      try {
+        await http.post(`/task/${taskId}/progress`, { progress, status: st })
+        await loadTeamDash(opsGroupId.value)
+      } finally { loading.value = false }
+    }
+
+    function copyNudgeAccounts() {
+      const items = classNudges.value?.items || []
+      const text = items.map((x) => `${x.name}（${x.account}）— ${x.reason}`).join('\n')
+      if (!text) return ElementPlus.ElMessage.info(t('暂无待催办学生'))
+      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => ElementPlus.ElMessage.success(t('已复制催办名单')))
+    }
+
     async function loadClassDetail(id = selectedClassId.value) {
       if (!id) {
         classDetail.value = null
@@ -1587,6 +1945,10 @@ const App = {
       selectedClassId.value = id
       const { data } = await http.get(`/admin/classes/${id}`)
       classDetail.value = data
+      classHealth.value = data.health || null
+      classTimeline.value = data.timeline || []
+      loadClassNudges()
+      loadRubrics()
       classForm.value = {
         name: data.name || '',
         code: data.code || '',
@@ -1692,7 +2054,8 @@ const App = {
       const { data } = await http.get(`/admin/team-activities/${id}`)
       activityDetail.value = data
       opsGroupId.value = data.groups?.[0]?.id || opsGroupId.value
-      await Promise.all([loadOverview(), loadCommandDashboard()])
+      await Promise.all([loadOverview(), loadCommandDashboard(), loadActivityMilestones()])
+      if (opsGroupId.value) await loadTeamDash(opsGroupId.value)
     }
 
     async function openActivityDetail(id) {
@@ -1741,7 +2104,10 @@ const App = {
       }
       loading.value = true
       try {
-        await http.post(`/admin/team-activities/${selectedActivityId.value}/auto-group`)
+        await http.post(`/admin/team-activities/${selectedActivityId.value}/auto-group`, {
+          template_id: selectedGroupingTemplate.value,
+          config: { template_id: selectedGroupingTemplate.value },
+        })
         ElementPlus.ElMessage.success('已生成活动小组')
         await loadActivityDetail()
       } finally { loading.value = false }
@@ -1845,7 +2211,7 @@ const App = {
     async function refreshAll() {
       loading.value = true
       try {
-        await Promise.all([loadCommandDashboard(), loadOverview(), loadUsers(), loadConfig(), loadActivities(), loadClasses(), loadEntitlements()])
+        await Promise.all([loadCommandDashboard(), loadOverview(), loadUsers(), loadConfig(), loadActivities(), loadClasses(), loadEntitlements(), loadTaskTemplateMarket()])
       } finally {
         loading.value = false
       }
@@ -2035,7 +2401,10 @@ const App = {
       if (p === 'workbench') {
         refreshAll()
       }
-      if (p === 'classes') loadClasses().then(() => selectedClassId.value && loadClassDetail(selectedClassId.value))
+      if (p === 'classes') {
+        loadGroupingTemplates()
+        loadClasses().then(() => selectedClassId.value && loadClassDetail(selectedClassId.value))
+      }
       if (p === 'users') loadUsers()
       if (p === 'community') loadCommunityPosts()
       if (p === 'export') loadOverview()
@@ -2238,6 +2607,47 @@ const App = {
       removeClassMember,
       reviewClassRequest,
       refreshClassAdvice,
+      groupingTemplates,
+      selectedGroupingTemplate,
+      classHealth,
+      classNudges,
+      classTimeline,
+      copilotVisible,
+      copilotQuestion,
+      copilotMessages,
+      copilotLoading,
+      copilotSuggestedQuestions,
+      groupingPreview,
+      groupingCompare,
+      rubrics,
+      taskTemplateMarket,
+      loadCopilotSuggestions,
+      sendClassNudges,
+      previewGrouping,
+      compareGroupingScenarios,
+      exportSuperGroupReport,
+      loadRubrics,
+      createDefaultRubric,
+      saveRubricScore,
+      activeRubric,
+      activeRubricId,
+      loadTaskTemplateMarket,
+      loadActivityMilestones,
+      addActivityMilestone,
+      activityMilestones,
+      milestoneForm,
+      applyCompareTemplate,
+      selectedCompareKey,
+      onNudgeSelectionChange,
+      nudgeSelection,
+      teacherKanbanTasks,
+      teacherKanbanDrop,
+      loadGroupingTemplates,
+      loadClassHealth,
+      loadClassNudges,
+      saveClassTimeline,
+      sendClassCopilot,
+      copyNudgeAccounts,
       loadActivities,
       loadActivityDetail,
       openActivityDetail,
@@ -2265,7 +2675,10 @@ const App = {
       entitlements,
       billingPlans,
       billingPlansDisplay,
+      billingAddons,
       billingOrders,
+      billingPendingReview,
+      billingConfig,
       billingUsage,
       upgradeVisible,
       upgradeContext,
@@ -2275,13 +2688,19 @@ const App = {
       activeOrder,
       aiPointsLabel,
       aiPointsPercent,
+      selectedPlanPrice,
+      paymentHint,
       openUpgrade,
       createUpgradeOrder,
       confirmOrderPaid,
+      cancelActiveOrder,
+      copyOrderNo,
+      orderStatusLabel,
       startProTrial,
       fulfillOrder,
       loadBillingOrders,
       loadBillingUsage,
+      loadBillingConfig,
       stopOrderPoll,
     }
   },
@@ -2460,6 +2879,52 @@ const App = {
                     </el-table>
                   </el-tab-pane>
 
+                  <el-tab-pane :label="t('班级健康度')" name="health">
+                    <div v-if="!classHealth" class="empty-state-box">
+                      <p>{{ t('暂无健康度数据') }}</p>
+                      <el-button type="primary" plain @click="loadClassHealth">{{ t('刷新') }}</el-button>
+                      <el-button @click="page='workbench'">{{ t('创建活动') }}</el-button>
+                    </div>
+                    <div v-if="classHealth" class="teacher-overview-grid">
+                      <div class="teacher-metric"><span>{{ t('健康分') }}</span><strong>{{ classHealth.health_score }}</strong></div>
+                      <div class="teacher-metric"><span>{{ t('画像完成率') }}</span><strong>{{ classHealth.profile_completion_rate }}%</strong></div>
+                      <div class="teacher-metric"><span>{{ t('任务完成率') }}</span><strong>{{ classHealth.task_completion_rate }}%</strong></div>
+                      <div class="teacher-metric"><span>{{ t('待确认队伍') }}</span><strong>{{ classHealth.pending_confirmations }}</strong></div>
+                      <div class="teacher-metric"><span>{{ t('逾期任务') }}</span><strong>{{ classHealth.overdue_tasks }}</strong></div>
+                      <div class="teacher-metric"><span>{{ t('风险任务') }}</span><strong>{{ classHealth.risk_task_count }}</strong></div>
+                    </div>
+                    <p v-if="classHealth.breakdown" class="hint">{{ t('健康分构成') }}：{{ t('画像') }} {{ classHealth.breakdown.profile_component }} + {{ t('任务') }} {{ classHealth.breakdown.task_component }} + {{ t('风险') }} {{ classHealth.breakdown.risk_component }}</p>
+                    <div class="class-tools" style="margin:12px 0">
+                      <el-button @click="loadClassHealth">{{ t('刷新') }}</el-button>
+                      <el-button type="primary" plain @click="copilotVisible=true; loadCopilotSuggestions()">{{ t('班级 Copilot') }}</el-button>
+                      <el-button type="warning" plain @click="sendClassNudges">{{ t('一键催办') }}</el-button>
+                      <el-button @click="copyNudgeAccounts">{{ t('复制催办名单') }}</el-button>
+                      <el-button @click="exportSuperGroupReport">{{ t('超级分组报告') }}</el-button>
+                    </div>
+                    <el-table v-if="classNudges?.items?.length" :data="classNudges.items" stripe size="small" @selection-change="onNudgeSelectionChange">
+                      <el-table-column type="selection" width="48" />
+                      <el-table-column prop="name" :label="t('姓名')" width="100" />
+                      <el-table-column prop="account" :label="t('账号')" width="120" />
+                      <el-table-column prop="reason" :label="t('原因')" />
+                    </el-table>
+                    <p v-else class="hint">{{ t('暂无待催办学生') }}</p>
+                  </el-tab-pane>
+
+                  <el-tab-pane :label="t('学期时间轴')" name="timeline">
+                    <p class="hint">{{ t('Pro 可编辑节点；Free 只读预览。') }}</p>
+                    <div v-for="(node, idx) in classTimeline" :key="node.key||idx" class="timeline-node">
+                      <strong>{{ node.title }}</strong>
+                      <p class="hint">{{ node.hint }}</p>
+                      <el-date-picker v-model="node.due_at" type="date" value-format="YYYY-MM-DD" size="small" :placeholder="t('截止日')" style="margin-right:8px" />
+                      <el-select v-model="node.status" size="small" style="width:120px">
+                        <el-option :label="t('待开始')" value="pending" />
+                        <el-option :label="t('进行中')" value="active" />
+                        <el-option :label="t('已完成')" value="done" />
+                      </el-select>
+                    </div>
+                    <el-button type="primary" plain style="margin-top:12px" @click="saveClassTimeline">{{ t('保存时间轴') }}</el-button>
+                  </el-tab-pane>
+
                   <el-tab-pane :label="t('分组建议')" name="advice">
                     <div class="class-advice-box">
                       <div>
@@ -2467,11 +2932,41 @@ const App = {
                         <p class="hint">{{ t('建议基于当前 active 成员人数生成；真正自动分组时还会结合画像均衡。') }}</p>
                       </div>
                       <div class="class-tools compact">
+                        <el-select v-model="selectedGroupingTemplate" :placeholder="t('分组策略')" style="min-width:200px">
+                          <el-option v-for="tpl in groupingTemplates" :key="tpl.id" :label="tpl.name + (tpl.locked ? ' 🔒' : '')" :value="tpl.id" :disabled="tpl.locked" />
+                        </el-select>
                         <el-input-number v-model="classAdviceGroupSize" :min="3" :max="5" />
                         <el-button @click="refreshClassAdvice">{{ t('重新计算') }}</el-button>
+                        <el-button @click="previewGrouping">{{ t('预览分组效果') }}</el-button>
+                        <el-button @click="compareGroupingScenarios">{{ t('多方案对比') }}</el-button>
                         <el-button type="warning" plain @click="openUpgrade({ feature: 'grouping.deep' })">解锁 DeepSeek 完整分析</el-button>
                       </div>
                     </div>
+                    <div v-if="groupingPreview?.groups?.length" class="compare-panel">
+                      <p class="hint">{{ t('预览均衡分') }} <strong>{{ groupingPreview.balance_score }}</strong></p>
+                      <el-table :data="groupingPreview.groups" size="small" stripe>
+                        <el-table-column prop="group_name" :label="t('小组')" width="90" />
+                        <el-table-column :label="t('成员')" min-width="200"><template #default="{row}">{{ (row.members||[]).map(m=>m.name).join('、') }}</template></el-table-column>
+                        <el-table-column prop="avg_skill" :label="t('技能均分')" width="90" />
+                        <el-table-column :label="t('说明')" min-width="240"><template #default="{row}"><span class="explain-text">{{ row.complement_note }}</span></template></el-table-column>
+                      </el-table>
+                    </div>
+                    <div v-if="groupingCompare?.length" class="compare-panel">
+                      <div class="advice-size-row">
+                        <div v-for="sc in groupingCompare" :key="sc.key" class="advice-size-card" :class="{active: selectedCompareKey===sc.key}" @click="applyCompareTemplate(sc.key)">
+                          <span>{{ sc.label }}</span>
+                          <strong>{{ sc.balance_score ?? '—' }}</strong>
+                          <el-button v-if="sc.template_id" size="small" link type="primary">{{ t('应用此方案') }}</el-button>
+                        </div>
+                      </div>
+                      <el-table v-if="selectedCompareKey" :data="(groupingCompare.find(x=>x.key===selectedCompareKey)||{}).groups||[]" size="small" stripe>
+                        <el-table-column prop="group_name" :label="t('小组')" width="90" />
+                        <el-table-column :label="t('成员')" min-width="200"><template #default="{row}">{{ (row.members||[]).map(m=>m.name+(m.major?`(${m.major})`:'')).join('、') }}</template></el-table-column>
+                        <el-table-column prop="avg_skill" :label="t('技能')" width="70" />
+                        <el-table-column :label="t('说明')" min-width="200"><template #default="{row}"><span class="explain-text">{{ row.complement_note }}</span></template></el-table-column>
+                      </el-table>
+                    </div>
+                    <p v-else-if="!classAdvice.sizes?.length && !classMembers.length" class="empty-state-box">{{ t('暂无可分组学生') }} — <el-button link type="primary" @click="classTab='members'">{{ t('添加成员') }}</el-button></p>
                     <div v-if="classAdvice.ai_analysis" class="ai-insight-card" :class="{ 'ai-locked': classAdvice.ai_analysis?.locked }">
                       <div class="ai-insight-head">
                         <span>AI</span>
@@ -2492,6 +2987,31 @@ const App = {
                         <span>{{ t('第') }} {{ idx + 1 }} {{ t('组') }}</span>
                         <strong>{{ s }} {{ t('人') }}</strong>
                       </div>
+                    </div>
+                  </el-tab-pane>
+
+                  <el-tab-pane :label="t('过程评价')" name="rubric">
+                    <div v-if="!rubrics.length" class="empty-state-box">
+                      <p>{{ t('暂无过程评价量表') }}</p>
+                      <el-button type="primary" @click="createDefaultRubric">{{ t('创建默认量表') }}</el-button>
+                    </div>
+                    <div v-else>
+                      <el-select v-model="activeRubricId" style="min-width:220px;margin-bottom:12px">
+                        <el-option v-for="r in rubrics" :key="r.id" :label="r.title" :value="r.id" />
+                      </el-select>
+                      <p class="hint">{{ t('选择活动小组后，为每位成员打分（需已生成小组）') }}</p>
+                      <el-select v-model="opsGroupId" :placeholder="t('选择小组')" style="width:200px;margin:8px 0" @change="loadTeamDash(opsGroupId)">
+                        <el-option v-for="g in exportGroups" :key="g.id" :label="g.group_name || (t('小组')+g.id)" :value="g.id" />
+                      </el-select>
+                      <el-table v-if="activeRubric && opsGroupId" :data="(teamDash?.members||[])" size="small">
+                        <el-table-column :label="t('姓名')"><template #default="{row}">{{ row.user?.name }}</template></el-table-column>
+                        <el-table-column v-for="c in (activeRubric.criteria||[])" :key="c.key" :label="c.label" width="120">
+                          <template #default="{row}">
+                            <el-input-number :min="0" :max="c.max||5" size="small" :model-value="0" @change="(v)=>saveRubricScore(row.user, {[c.key]: v})" />
+                          </template>
+                        </el-table-column>
+                      </el-table>
+                      <p v-else class="hint">{{ t('请在工作台生成小组后再评分') }}</p>
                     </div>
                   </el-tab-pane>
 
@@ -2527,6 +3047,13 @@ const App = {
                 <div><strong>{{ selectedActivity?.participant_count || 0 }}</strong><span>{{ t('参与学生') }}</span></div>
                 <div><strong>{{ selectedActivity?.group_count || selectedActivity?.team_count || 0 }}</strong><span>{{ t('队伍/小组') }}</span></div>
                 <div><strong>{{ commandDash.feedback_count || 0 }}</strong><span>{{ t('任务反馈') }}</span></div>
+              </div>
+            </div>
+            <div v-if="commandDash.class_summaries?.length" class="class-health-strip">
+              <div v-for="c in commandDash.class_summaries" :key="c.class_id" class="class-health-chip" @click="selectedClassId=c.class_id; page='classes'; loadClassDetail(c.class_id)">
+                <strong>{{ c.name }}</strong>
+                <span>{{ t('健康分') }} {{ c.health_score }}</span>
+                <span v-if="c.nudge_total">{{ t('待催办') }} {{ c.nudge_total }}</span>
               </div>
             </div>
 
@@ -2601,10 +3128,30 @@ const App = {
               </div>
               <div class="activity-actions">
                 <el-button type="primary" plain :disabled="selectedActivity.status!=='draft'" :loading="loading" @click="publishActivityCollect">{{ t('发布给学生填写') }}</el-button>
+                <el-select v-if="selectedActivity.mode==='task_auto'" v-model="selectedGroupingTemplate" size="small" style="width:180px;margin-right:8px" :placeholder="t('分组策略')">
+                  <el-option v-for="tpl in groupingTemplates" :key="tpl.id" :label="tpl.name" :value="tpl.id" :disabled="tpl.locked" />
+                </el-select>
                 <el-button v-if="selectedActivity.mode==='task_auto'" type="primary" :disabled="!activityParticipants.length" :loading="loading" @click="autoGroupActivity">{{ t('生成候选分组') }}</el-button>
                 <el-button v-if="selectedActivity.mode==='task_auto'" type="success" :disabled="!activityGroups.length" :loading="loading" @click="publishActivityGroups">{{ t('锁定正式团队') }}</el-button>
                 <el-button v-if="selectedActivity.mode==='free_team'" type="success" :disabled="!activityRooms.length" :loading="loading" @click="lockFreeTeams">{{ t('锁定自由组队结果') }}</el-button>
                 <el-button v-if="activityGroups.length" type="warning" plain :loading="loading" @click="refreshActivityInsight">{{ t('刷新活动 AI 复盘') }}</el-button>
+              </div>
+
+              <div class="activity-section">
+                <h4>{{ t('活动里程碑') }}</h4>
+                <div class="milestone-list">
+                  <div v-for="m in activityMilestones" :key="m.id" class="milestone-chip" :class="m.status">
+                    <strong>{{ m.title }}</strong>
+                    <span>{{ m.due_at || '—' }}</span>
+                    <el-tag size="small">{{ formatStatus(m.status) }}</el-tag>
+                  </div>
+                  <p v-if="!activityMilestones.length" class="hint">{{ t('暂无里程碑，添加关键节点便于学生对照进度') }}</p>
+                </div>
+                <div class="class-tools compact">
+                  <el-input v-model="milestoneForm.title" :placeholder="t('里程碑标题')" style="max-width:200px" />
+                  <el-date-picker v-model="milestoneForm.due_at" type="date" value-format="YYYY-MM-DD" :placeholder="t('截止日')" />
+                  <el-button @click="addActivityMilestone">{{ t('添加') }}</el-button>
+                </div>
               </div>
 
               <div class="activity-summary-grid">
@@ -2736,7 +3283,10 @@ const App = {
 
                 <div class="activity-actions drawer-actions">
                   <el-button type="primary" plain :disabled="selectedActivity.status!=='draft'" :loading="loading" @click="publishActivityCollect">{{ t('发布给学生填写') }}</el-button>
-                  <el-button v-if="selectedActivity.mode==='task_auto'" type="primary" :disabled="!activityParticipants.length" :loading="loading" @click="autoGroupActivity">{{ t('生成候选分组') }}</el-button>
+                  <el-select v-if="selectedActivity.mode==='task_auto'" v-model="selectedGroupingTemplate" size="small" style="width:180px;margin-right:8px" :placeholder="t('分组策略')">
+                  <el-option v-for="tpl in groupingTemplates" :key="tpl.id" :label="tpl.name" :value="tpl.id" :disabled="tpl.locked" />
+                </el-select>
+                <el-button v-if="selectedActivity.mode==='task_auto'" type="primary" :disabled="!activityParticipants.length" :loading="loading" @click="autoGroupActivity">{{ t('生成候选分组') }}</el-button>
                   <el-button v-if="selectedActivity.mode==='task_auto'" type="success" :disabled="!activityGroups.length" :loading="loading" @click="publishActivityGroups">{{ t('锁定正式团队') }}</el-button>
                   <el-button v-if="selectedActivity.mode==='free_team'" type="success" :disabled="!activityRooms.length" :loading="loading" @click="lockFreeTeams">{{ t('锁定自由组队结果') }}</el-button>
                 </div>
@@ -2899,6 +3449,7 @@ const App = {
                 <div>
                   <h3>{{ t('订阅与订单') }}</h3>
                   <p class="hint">{{ t('管理套餐、查看 AI 用量；待支付订单可在此人工核销。') }}</p>
+                  <p v-if="billingPendingReview" class="hint billing-alert">{{ t('待核销订单') }}: {{ billingPendingReview }}</p>
                 </div>
                 <el-button type="warning" @click="openUpgrade()">{{ t('升级套餐') }}</el-button>
               </div>
@@ -2912,6 +3463,7 @@ const App = {
                   <span v-if="p.badge" class="plan-badge">{{ p.badge }}</span>
                   <h4>{{ p.name }}</h4>
                   <p class="plan-price">¥{{ p.price_month }}<small>{{ t('/月') }}</small></p>
+                  <p v-if="p.year_save_percent" class="hint plan-year">¥{{ p.price_year }}{{ t('/年') }} · {{ t('省') }}{{ p.year_save_percent }}%</p>
                   <ul><li v-for="f in p.features" :key="f">{{ f }}</li></ul>
                   <el-button v-if="p.code!=='free'" type="primary" plain @click="upgradePlanCode=p.code; openUpgrade()">{{ t('选择') }}</el-button>
                 </div>
@@ -2924,10 +3476,12 @@ const App = {
                 <el-table-column prop="user_account" :label="t('账号')" width="120" />
                 <el-table-column :label="t('金额')" width="90"><template #default="{row}">¥{{ row.amount }}</template></el-table-column>
                 <el-table-column prop="channel" :label="t('渠道')" width="90" />
-                <el-table-column prop="status" :label="t('状态')" width="100" />
-                <el-table-column :label="t('操作')" width="120">
+                <el-table-column :label="t('状态')" width="110">
+                  <template #default="{row}"><el-tag :type="row.status==='pending_review'?'warning':row.status==='paid'?'success':'info'" size="small">{{ orderStatusLabel(row) }}</el-tag></template>
+                </el-table-column>
+                <el-table-column :label="t('操作')" width="140">
                   <template #default="{row}">
-                    <el-button v-if="row.status==='pending'" size="small" type="success" @click="fulfillOrder(row)">{{ t('核销') }}</el-button>
+                    <el-button v-if="row.status==='pending'||row.status==='pending_review'" size="small" type="success" @click="fulfillOrder(row)">{{ t('核销') }}</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -2960,6 +3514,7 @@ const App = {
                 <div class="export-tile" @click="downloadExport('group')"><div class="tile-icon">👥</div><div class="tile-label">{{ t('导出分组') }}</div></div>
                 <div class="export-tile" @click="downloadExport('task')"><div class="tile-icon">📋</div><div class="tile-label">{{ t('导出任务') }}</div></div>
                 <div class="export-tile" @click="downloadReportExport"><div class="tile-icon">📄</div><div class="tile-label">{{ t('导出报告 PDF') }}</div></div>
+                <div class="export-tile" @click="exportSuperGroupReport"><div class="tile-icon">📑</div><div class="tile-label">{{ t('超级分组报告') }}</div></div>
               </div>
             </div>
           </template>
@@ -2982,6 +3537,43 @@ const App = {
                 <el-form-item :label="t('adjustDays')"><el-input-number v-model="sysConfig.default_adjust_days" :min="1" :max="30" /></el-form-item>
                 <el-button type="primary" @click="saveConfig">{{ t('save') }}</el-button>
               </el-form>
+            </div>
+            <div class="card" style="margin-top:16px">
+              <div class="card-header"><h3>{{ t('任务模板市场') }}</h3><el-button @click="loadTaskTemplateMarket">{{ t('刷新') }}</el-button></div>
+              <div v-if="!taskTemplateMarket.length" class="empty-state-box">{{ t('暂无模板') }}</div>
+              <div class="template-market-grid">
+                <div v-for="tpl in taskTemplateMarket" :key="tpl.key" class="template-market-card" :class="{active: opsTemplate===tpl.key}" @click="opsTemplate=tpl.key">
+                  <strong>{{ tpl.name }}</strong>
+                  <p>{{ tpl.description }}</p>
+                  <span>{{ tpl.task_count }} {{ t('个子任务') }}</span>
+                  <ul><li v-for="st in (tpl.sample_tasks||[])" :key="st.name">{{ st.name }}</li></ul>
+                </div>
+              </div>
+            </div>
+            <div v-if="opsGroupId && teamDash?.tasks?.length" class="card" style="margin-top:16px">
+              <div class="card-header"><h3>{{ t('组内看板') }}</h3><span class="hint">#{{ opsGroupId }}</span></div>
+              <div class="kanban-board teacher-kanban">
+                <div class="kanban-col" @dragover.prevent @drop="teacherKanbanDrop($event,'pending')">
+                  <h4>{{ t('待开始') }}</h4>
+                  <div v-for="row in teacherKanbanTasks.pending" :key="row.id" class="kanban-card" draggable="true" @dragstart="(e)=>e.dataTransfer.setData('text/task-id', String(row.id))">
+                    <strong>{{ row.task_name }}</strong>
+                    <el-progress :percentage="row.progress||0" :stroke-width="6" />
+                  </div>
+                </div>
+                <div class="kanban-col" @dragover.prevent @drop="teacherKanbanDrop($event,'in_progress')">
+                  <h4>{{ t('进行中') }}</h4>
+                  <div v-for="row in teacherKanbanTasks.in_progress" :key="row.id" class="kanban-card" draggable="true" @dragstart="(e)=>e.dataTransfer.setData('text/task-id', String(row.id))">
+                    <strong>{{ row.task_name }}</strong>
+                    <el-progress :percentage="row.progress||0" :stroke-width="6" />
+                  </div>
+                </div>
+                <div class="kanban-col" @dragover.prevent @drop="teacherKanbanDrop($event,'done')">
+                  <h4>{{ t('已完成') }}</h4>
+                  <div v-for="row in teacherKanbanTasks.done" :key="row.id" class="kanban-card done" draggable="true" @dragstart="(e)=>e.dataTransfer.setData('text/task-id', String(row.id))">
+                    <strong>{{ row.task_name }}</strong>
+                  </div>
+                </div>
+              </div>
             </div>
           </template>
 
@@ -3109,30 +3701,50 @@ const App = {
                 </el-radio-group>
               </el-form-item>
             </el-form>
+            <p v-if="paymentHint" class="hint">{{ paymentHint }}</p>
+            <p v-if="selectedPlanPrice != null" class="hint"><strong>{{ t('应付金额') }}：</strong>¥{{ selectedPlanPrice }}</p>
             <div class="upgrade-actions">
               <el-button v-if="entitlements && !entitlements.trial_used" type="success" plain @click="startProTrial">{{ t('领取 7 天 Pro 试用') }}</el-button>
               <el-button type="primary" :loading="loading" @click="createUpgradeOrder">{{ t('生成付款码') }}</el-button>
-              <el-button v-if="activeOrder" type="warning" :loading="loading" @click="confirmOrderPaid">{{ t('我已付款') }}</el-button>
+              <el-button v-if="activeOrder && activeOrder.status==='pending'" type="warning" :loading="loading" @click="confirmOrderPaid">{{ t('我已付款') }}</el-button>
+              <el-button v-if="activeOrder && activeOrder.status==='pending_review'" type="info" disabled>{{ t('待核销') }}</el-button>
+              <el-button v-if="activeOrder && (activeOrder.status==='pending'||activeOrder.status==='pending_review')" plain @click="cancelActiveOrder">{{ t('取消订单') }}</el-button>
             </div>
           </div>
           <div class="upgrade-qr" v-if="activeOrder?.payment || activeOrder?.qr">
             <p class="hint">{{ formatDynamicText(activeOrder.qr?.hint || activeOrder.payment?.hint || t('请扫码支付')) }}</p>
-            <p><strong>{{ t('订单号：') }}</strong>{{ activeOrder.order_no }}</p>
+            <p><strong>{{ t('订单号：') }}</strong>{{ activeOrder.order_no }} <el-button link type="primary" size="small" @click="copyOrderNo(activeOrder.order_no)">{{ t('复制') }}</el-button></p>
             <p><strong>{{ t('金额：') }}</strong>¥{{ activeOrder.amount }}</p>
+            <p v-if="activeOrder.status_label"><strong>{{ t('状态') }}：</strong>{{ activeOrder.status_label }}</p>
             <div class="qr-dual">
-              <div v-if="activeOrder.payment?.wechat_qr_url || (upgradeChannel==='wechat' && activeOrder.payment?.wechat_qr_url)">
-                <img v-if="activeOrder.payment?.wechat_qr_url" :src="activeOrder.payment.wechat_qr_url" :alt="t('微信支付')" />
-                <span v-else>BILLING_WECHAT_QR_URL</span>
+              <div v-if="upgradeChannel==='wechat'">
+                <img v-if="activeOrder.payment?.wechat_qr_url" :src="activeOrder.payment.wechat_qr_url" :alt="t('微信支付')" class="qr-img" />
+                <span v-else class="qr-missing">{{ t('未配置微信收款码') }}</span>
                 <small>{{ t('微信') }}</small>
               </div>
-              <div>
-                <img v-if="activeOrder.payment?.alipay_qr_url" :src="activeOrder.payment.alipay_qr_url" :alt="t('支付宝')" />
-                <span v-else>BILLING_ALIPAY_QR_URL</span>
+              <div v-if="upgradeChannel==='alipay'">
+                <img v-if="activeOrder.payment?.alipay_qr_url" :src="activeOrder.payment.alipay_qr_url" :alt="t('支付宝')" class="qr-img" />
+                <span v-else class="qr-missing">{{ t('未配置支付宝收款码') }}</span>
                 <small>{{ t('支付宝') }}</small>
               </div>
             </div>
           </div>
         </div>
+      </el-dialog>
+
+      <el-dialog v-model="copilotVisible" :title="t('班级 Copilot')" width="640px" class="copilot-dialog">
+        <p class="hint">{{ t('可询问：谁可能拖进度、该催哪些学生、如何拆任务、分组注意点。每次提问消耗 AI 点数（Pro）。') }}</p>
+        <div v-if="copilotSuggestedQuestions.length" class="copilot-chips">
+          <el-tag v-for="q in copilotSuggestedQuestions" :key="q" class="copilot-chip" @click="sendClassCopilot(q)">{{ q }}</el-tag>
+        </div>
+        <div class="copilot-messages">
+          <div v-for="(m, i) in copilotMessages" :key="i" :class="['copilot-msg', m.role]">{{ m.text }}</div>
+        </div>
+        <el-input v-model="copilotQuestion" type="textarea" :rows="2" :placeholder="t('输入问题…')" @keyup.enter.ctrl="sendClassCopilot" />
+        <template #footer>
+          <el-button @click="copilotVisible=false">{{ t('关闭') }}</el-button>
+          <el-button type="primary" :loading="copilotLoading" @click="sendClassCopilot">{{ t('发送') }}</el-button>
+        </template>
       </el-dialog>
 
       <el-dialog v-model="rulesVisible" :title="t('计算规则说明')" width="760px">

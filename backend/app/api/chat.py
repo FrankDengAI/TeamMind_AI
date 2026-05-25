@@ -4,31 +4,79 @@ from __future__ import annotations
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import decode_token, get_jwt_identity, jwt_required
+from flask_jwt_extended import get_jwt_identity, jwt_required
 from sqlalchemy import or_
 
 from app import db, socketio
 from app.models import ChatConversation, ChatMessage, User
 from app.services.passive_tag_pipeline import PassiveTagPipeline
-from app.middleware.auth import get_request_user_id
+from app.middleware.auth import decode_jwt_token, get_request_user_id
 
 bp = Blueprint("chat", __name__)
 pipeline = PassiveTagPipeline()
+
+
+def _group_conversations_for_user(uid: int) -> list[ChatConversation]:
+    from app.models import GroupInfo
+
+    groups = GroupInfo.query.all()
+    out = []
+    for g in groups:
+        if uid not in g.member_list():
+            continue
+        conv = ChatConversation.query.filter_by(group_id=g.id).first()
+        if not conv:
+            conv = ChatConversation(group_id=g.id, last_message_at=datetime.utcnow())
+            db.session.add(conv)
+            db.session.commit()
+        out.append(conv)
+    return out
+
+
+@bp.route("/groups/<int:group_id>/conversation", methods=["GET"])
+@jwt_required()
+def group_conversation(group_id):
+    from app.models import GroupInfo
+
+    uid = get_request_user_id()
+    g = GroupInfo.query.get_or_404(group_id)
+    if uid not in g.member_list():
+        user = User.query.get(uid)
+        if not user or user.role != "admin":
+            return jsonify({"error": "无权访问小组频道"}), 403
+    conv = ChatConversation.query.filter_by(group_id=group_id).first()
+    if not conv:
+        conv = ChatConversation(group_id=group_id, last_message_at=datetime.utcnow())
+        db.session.add(conv)
+        db.session.commit()
+    return jsonify(conv.to_dict(uid))
 
 
 @bp.route("/conversations", methods=["GET"])
 @jwt_required()
 def conversations():
     uid = get_request_user_id()
-    convs = ChatConversation.query.filter(or_(ChatConversation.user1_id == uid, ChatConversation.user2_id == uid)).order_by(
-        ChatConversation.last_message_at.desc()
-    ).all()
+    direct = ChatConversation.query.filter(
+        or_(ChatConversation.user1_id == uid, ChatConversation.user2_id == uid),
+        ChatConversation.group_id.is_(None),
+    ).order_by(ChatConversation.last_message_at.desc()).all()
+    group_convs = _group_conversations_for_user(uid)
+    convs = list(direct) + group_convs
+    convs.sort(key=lambda c: c.last_message_at or datetime.min, reverse=True)
     data = []
     for conv in convs:
         item = conv.to_dict(uid)
-        other = User.query.get(item["other_user_id"])
+        if conv.group_id:
+            from app.models import GroupInfo
+
+            g = GroupInfo.query.get(conv.group_id)
+            item["group"] = {"id": conv.group_id, "group_name": g.group_name if g else ""}
+            item["title"] = g.group_name if g else f"小组 #{conv.group_id}"
+        else:
+            other = User.query.get(item.get("other_user_id"))
+            item["other_user"] = other.to_dict() if other else None
+            item["title"] = other.name if other else ""
         last = ChatMessage.query.filter_by(conversation_id=conv.id).order_by(ChatMessage.create_time.desc()).first()
-        item["other_user"] = other.to_dict() if other else None
         item["last_message"] = last.to_dict() if last else None
         item["unread"] = ChatMessage.query.filter(
             ChatMessage.conversation_id == conv.id,
@@ -59,7 +107,9 @@ def messages(conversation_id):
     uid = get_request_user_id()
     conv = ChatConversation.query.get_or_404(conversation_id)
     if uid not in conv.member_ids():
-        return jsonify({"error": "无权访问"}), 403
+        user = User.query.get(uid)
+        if not user or user.role != "admin":
+            return jsonify({"error": "无权访问"}), 403
     rows = ChatMessage.query.filter_by(conversation_id=conversation_id).order_by(ChatMessage.create_time.asc()).limit(200).all()
     return jsonify([m.to_dict() for m in rows])
 
@@ -70,7 +120,9 @@ def send_message_rest(conversation_id):
     uid = get_request_user_id()
     conv = ChatConversation.query.get_or_404(conversation_id)
     if uid not in conv.member_ids():
-        return jsonify({"error": "无权访问"}), 403
+        user = User.query.get(uid)
+        if not user or user.role != "admin":
+            return jsonify({"error": "无权访问"}), 403
     data = request.get_json(silent=True) or {}
     try:
         msg = _save_message(conv, uid, data.get("content") or "", data.get("msg_type") or "text")
@@ -126,16 +178,16 @@ if socketio is not None:
         token = (auth or {}).get("token") or request.args.get("token")
         if not token:
             return False
-        try:
-            decode_token(token)
-            return True
-        except Exception:
-            return False
+        sub, _, _ = decode_jwt_token(token)
+        return sub is not None
 
     @socketio.on("send_message")
     def socket_send_message(data):  # pragma: no cover
         try:
-            uid = int(decode_token(data.get("token"))["sub"])
+            sub, err, _ = decode_jwt_token(data.get("token"))
+            if err:
+                return {"error": err}
+            uid = int(sub)
             target = int(data.get("target_user_id") or 0)
             conv_id = data.get("conversation_id")
             conv = ChatConversation.query.get(conv_id) if conv_id else _get_or_create_conversation(uid, target)

@@ -22,6 +22,7 @@ class Classroom(db.Model):
     max_students = db.Column(db.Integer, default=20)
     status = db.Column(db.String(32), default="active", index=True)
     description = db.Column(db.Text)
+    timeline_json = db.Column(db.Text)
     create_time = db.Column(db.DateTime, default=datetime.utcnow)
     update_time = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -38,6 +39,7 @@ class Classroom(db.Model):
             "max_students": self.max_students,
             "status": self.status,
             "description": self.description,
+            "timeline": None,
             "member_count": member_count,
             "pending_count": pending_count,
             "grouping_advice": advice,

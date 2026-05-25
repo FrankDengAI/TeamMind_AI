@@ -94,5 +94,6 @@ class Config:
     BILLING_WECHAT_QR_URL = os.environ.get("BILLING_WECHAT_QR_URL", "")
     BILLING_ALIPAY_QR_URL = os.environ.get("BILLING_ALIPAY_QR_URL", "")
     BILLING_MANUAL_CONFIRM = os.environ.get("BILLING_MANUAL_CONFIRM", "1") != "0"
-    BILLING_DEV_AUTO_PAY = os.environ.get("BILLING_DEV_AUTO_PAY", "1") != "0"
+    BILLING_DEV_AUTO_PAY = os.environ.get("BILLING_DEV_AUTO_PAY", "0") != "0"
+    BILLING_ORDER_TTL_MINUTES = int(os.environ.get("BILLING_ORDER_TTL_MINUTES", "30"))
     BILLING_WEBHOOK_SECRET = os.environ.get("BILLING_WEBHOOK_SECRET", "")

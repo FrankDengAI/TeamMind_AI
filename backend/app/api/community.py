@@ -165,6 +165,7 @@ def comment_post(post_id):
         return jsonify({"error": "评论不能为空"}), 400
     comment = PostComment(post_id=post_id, user_id=uid, content=content, is_anonymous=bool(data.get("is_anonymous")))
     db.session.add(comment)
+    db.session.flush()
     pipeline.record_post_event(uid, post, "post_comment", {"comment_id": comment.id})
     db.session.commit()
     return jsonify(comment.to_dict()), 201

@@ -98,20 +98,35 @@ class ChatConversation(db.Model):
     __tablename__ = "chat_conversation"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user1_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
-    user2_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    user1_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True, index=True)
+    user2_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True, index=True)
+    group_id = db.Column(db.Integer, db.ForeignKey("group_info.id"), index=True)
     last_message_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     create_time = db.Column(db.DateTime, default=datetime.utcnow)
 
     def member_ids(self) -> set[int]:
+        if self.group_id:
+            from app.models import GroupInfo
+
+            g = GroupInfo.query.get(self.group_id)
+            return set(g.member_list()) if g else set()
         return {self.user1_id, self.user2_id}
 
     def to_dict(self, current_user_id: int | None = None):
+        if self.group_id:
+            return {
+                "id": self.id,
+                "group_id": self.group_id,
+                "conversation_type": "group",
+                "other_user_id": None,
+            }
         other_id = self.user2_id if current_user_id == self.user1_id else self.user1_id
         return {
             "id": self.id,
             "user1_id": self.user1_id,
             "user2_id": self.user2_id,
+            "group_id": self.group_id,
+            "conversation_type": "direct",
             "other_user_id": other_id,
             "last_message_at": self.last_message_at.isoformat() if self.last_message_at else None,
             "create_time": self.create_time.isoformat() if self.create_time else None,

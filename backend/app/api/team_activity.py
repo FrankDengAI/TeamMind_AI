@@ -24,6 +24,7 @@ from app.models import (
 from app.services.algorithms.grouping import GroupingAlgorithm
 from app.services.ai_insights import activity_grouping_insight, group_ai_insight
 from app.services.class_grouping import suggest_group_sizes
+from app.services.grouping_templates import resolve_template, template_to_group_config
 from app.services.group_config import load_group_config, set_member_roles
 from app.services.role_assign import assign_roles_for_group
 from app.services.tag_catalog import normalize_active_tags
@@ -355,17 +356,33 @@ def auto_group(activity_id):
         "required_tags": activity.required_tags(),
         "required_roles": activity.required_roles(),
     }
+    data = request.get_json(silent=True) or {}
+    template_id = data.get("template_id") or (data.get("config") or {}).get("template_id")
+    group_mode = "task_auto"
+    cfg: dict = {}
+    if template_id:
+        cfg = template_to_group_config(template_id, {"mode": "task_auto"})
+        tpl = resolve_template(cfg.get("template_id"))
+        if tpl.get("tier") == "pro" and tid:
+            ent = get_entitlements(tid)
+            if ent.get("plan_code") == "free":
+                return jsonify({"error": "该分组模板需升级专业版", "code": "PAYWALL", "feature": "grouping.template"}), 402
+        group_mode = cfg.get("mode", group_mode)
     task_requirements = {
         "goal": activity.task_goal,
         "required_tags": activity.required_tags(),
         "required_roles": activity.required_roles(),
     }
+    group_constraints = cfg.get("constraints", {}) if template_id else {}
+    group_priority = cfg.get("priority", "skill") if template_id else "skill"
     result = group_algo.create_groups(
         profiles,
         group_size=activity.group_size,
-        mode="task_auto",
+        mode=group_mode,
+        priority=group_priority,
         task_requirements=task_requirements,
         target_sizes=suggest_group_sizes(len(profiles), activity.group_size) if activity.class_id and activity.group_size >= 3 else None,
+        constraints=group_constraints,
     )
     saved = []
     for g in result["groups"]:

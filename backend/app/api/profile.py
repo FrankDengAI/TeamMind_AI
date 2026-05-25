@@ -366,10 +366,8 @@ def update_profile(profile_id):
     if prof.user_id != uid:
         return jsonify({"error": "无权修改"}), 403
     data = request.get_json(silent=True) or {}
-    for key in (
-        "identity", "degree", "field", "major", "comm_ability", "pref_role",
-        "knowledge_score", "skill_score", "collab_score", "knowledge_final", "skill_final", "collab_final",
-    ):
+    # 分数由解析/评分引擎计算，禁止学生通过 PUT 篡改
+    for key in ("identity", "degree", "field", "major", "comm_ability", "pref_role"):
         if key in data:
             setattr(prof, key, data[key])
     for key, col in [

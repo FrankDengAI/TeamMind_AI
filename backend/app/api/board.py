@@ -52,6 +52,8 @@ def sync_board():
     uid = get_request_user_id()
     group_id = request.args.get("group_id", type=int)
     user = User.query.get(uid)
+    if not user:
+        return jsonify({"error": "用户不存在"}), 401
 
     if group_id:
         group = GroupInfo.query.get_or_404(group_id)
@@ -92,6 +94,8 @@ def team_dashboard(group_id):
     """团队项目看板：进度、积极性、截止预警."""
     uid = get_request_user_id()
     user = User.query.get(uid)
+    if not user:
+        return jsonify({"error": "用户不存在"}), 401
     group = GroupInfo.query.get_or_404(group_id)
     if user.role != "admin" and uid not in group.member_list():
         return jsonify({"error": "无权访问该团队"}), 403

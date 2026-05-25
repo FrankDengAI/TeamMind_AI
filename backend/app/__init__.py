@@ -147,6 +147,7 @@ def create_app(config_class=Config, serve_static=False, static_ui=None):
             _seed_demo_classes()
             _seed_demo_content()
             _seed_demo_activities()
+            _seed_demo_enrichment()
 
     try:
         from app.scheduler.jobs import start_scheduler
@@ -228,6 +229,14 @@ def _ensure_runtime_schema():
             db.session.execute(text("ALTER TABLE team_activity ADD COLUMN class_id INTEGER"))
         if "ai_insight_json" not in activity_cols:
             db.session.execute(text("ALTER TABLE team_activity ADD COLUMN ai_insight_json TEXT"))
+    if "classroom" in table_names:
+        class_cols = {c["name"] for c in inspector.get_columns("classroom")}
+        if "timeline_json" not in class_cols:
+            db.session.execute(text("ALTER TABLE classroom ADD COLUMN timeline_json TEXT"))
+    if "chat_conversation" in table_names:
+        chat_cols = {c["name"] for c in inspector.get_columns("chat_conversation")}
+        if "group_id" not in chat_cols:
+            db.session.execute(text("ALTER TABLE chat_conversation ADD COLUMN group_id INTEGER"))
     if "behavior_log" in table_names:
         behavior_cols = {c["name"] for c in inspector.get_columns("behavior_log")}
         behavior_additions = {
@@ -596,4 +605,48 @@ def _seed_demo_activities():
                     )
                     room.set_member_ids(first_members)
                     db.session.add(room)
+    db.session.commit()
+
+
+def _seed_demo_enrichment():
+    """演示：时间轴多样状态、Rubric、里程碑、首班健康叙事."""
+    import json
+    from datetime import datetime, timedelta
+
+    from app.models import Classroom, Milestone, Rubric, TeamActivity
+    from app.services.classroom_insights import save_timeline
+
+    cls = Classroom.query.filter_by(status="active").order_by(Classroom.create_time.asc()).first()
+    if not cls:
+        return
+    timeline = [
+        {"key": "profile", "title": "画像采集", "hint": "学生完成标签与自述", "offset_days": 0, "status": "done", "due_at": (datetime.utcnow() - timedelta(days=14)).date().isoformat()},
+        {"key": "grouping", "title": "组队确认", "hint": "发布活动并完成预沟通", "offset_days": 7, "status": "active", "due_at": (datetime.utcnow() + timedelta(days=3)).date().isoformat()},
+        {"key": "midterm", "title": "中期检查", "hint": "查看任务进度与风险", "offset_days": 21, "status": "pending", "due_at": (datetime.utcnow() + timedelta(days=18)).date().isoformat()},
+        {"key": "final", "title": "期末展示", "hint": "导出过程评价与团队报告", "offset_days": 42, "status": "pending", "due_at": (datetime.utcnow() + timedelta(days=35)).date().isoformat()},
+    ]
+    save_timeline(cls, timeline)
+    if not Rubric.query.filter_by(class_id=cls.id).first():
+        db.session.add(
+            Rubric(
+                class_id=cls.id,
+                title="项目过程评价量表（演示）",
+                criteria_json=json.dumps(
+                    [
+                        {"key": "contribution", "label": "贡献度", "max": 5},
+                        {"key": "collaboration", "label": "协作沟通", "max": 5},
+                        {"key": "quality", "label": "交付质量", "max": 5},
+                    ],
+                    ensure_ascii=False,
+                ),
+            )
+        )
+    act = TeamActivity.query.filter_by(class_id=cls.id, mode="task_auto").filter(
+        TeamActivity.status.in_(["collecting", "grouping", "preview"])
+    ).first()
+    if act and not Milestone.query.filter_by(activity_id=act.id).first():
+        due1 = datetime.utcnow() + timedelta(days=7)
+        due2 = datetime.utcnow() + timedelta(days=21)
+        db.session.add(Milestone(activity_id=act.id, title="完成需求与原型", due_at=due1, status="active", sort_order=1))
+        db.session.add(Milestone(activity_id=act.id, title="中期演示", due_at=due2, status="pending", sort_order=2))
     db.session.commit()
