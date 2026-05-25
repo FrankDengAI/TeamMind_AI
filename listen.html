@@ -26,10 +26,20 @@
     }
     h1 { font-size: 1.35rem; margin-bottom: 8px; font-weight: 600; }
     p { font-size: 0.9rem; color: #cbd5e1; margin-bottom: 24px; line-height: 1.6; }
-    audio {
-      width: 100%;
-      margin-bottom: 16px;
+    audio { width: 100%; margin-bottom: 16px; }
+    .err {
+      display: none;
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 10px;
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(248, 113, 113, 0.5);
+      font-size: 0.85rem;
+      color: #fecaca;
+      text-align: left;
+      line-height: 1.5;
     }
+    .err.show { display: block; }
     .hint { font-size: 0.8rem; color: #94a3b8; }
     a { color: #7dd3fc; }
   </style>
@@ -37,12 +47,26 @@
 <body>
   <main>
     <h1>TeamMind 音频讲解</h1>
-    <p>点击下方播放按钮即可收听，无需下载文件。</p>
-    <audio controls preload="metadata" src="https://raw.githubusercontent.com/FrankDengAI/TeamMind_AI/main/%E9%9F%B3%E9%A2%91%E8%AE%B2%E8%A7%A3.mp3">
-      您的浏览器不支持音频播放，请
-      <a href="https://raw.githubusercontent.com/FrankDengAI/TeamMind_AI/main/%E9%9F%B3%E9%A2%91%E8%AE%B2%E8%A7%A3.mp3">下载音频</a>。
-    </audio>
+    <p>点击下方播放按钮即可收听（音频与页面同一站点，避免跨域无法播放）。</p>
+    <!-- 必须与 listen.html 同目录一起推到 GitHub，文件名用英文最稳 -->
+    <audio id="player" controls preload="metadata" src="audio-intro.mp3"></audio>
+    <div id="err" class="err"></div>
     <p class="hint">组队超脑 TeamMind AI</p>
   </main>
+  <script>
+    const player = document.getElementById('player')
+    const err = document.getElementById('err')
+    const rawFallback = 'https://raw.githubusercontent.com/FrankDengAI/TeamMind_AI/main/%E9%9F%B3%E9%A2%91%E8%AE%B2%E8%A7%A3.mp3'
+    function showErr(msg) {
+      err.innerHTML = msg
+      err.classList.add('show')
+    }
+    player.addEventListener('error', function () {
+      showErr(
+        '无法加载音频。请确认仓库根目录已上传 <code>audio-intro.mp3</code>（约 4MB），并与 listen.html 一起 push 到开启 Pages 的分支。<br>' +
+        '也可尝试 <a href="' + rawFallback + '">直接下载原文件</a>。'
+      )
+    })
+  </script>
 </body>
 </html>
