@@ -49,21 +49,21 @@
     <h1>TeamMind 音频讲解</h1>
     <p>点击下方播放按钮即可收听（音频与页面同一站点，避免跨域无法播放）。</p>
     <!-- 必须与 listen.html 同目录一起推到 GitHub，文件名用英文最稳 -->
-    <audio id="player" controls preload="metadata" src="audio-intro.mp3"></audio>
+    <audio id="player" controls preload="metadata" src="audio-intro.m4a"></audio>
     <div id="err" class="err"></div>
     <p class="hint">组队超脑 TeamMind AI</p>
   </main>
   <script>
     const player = document.getElementById('player')
     const err = document.getElementById('err')
-    const rawFallback = 'https://raw.githubusercontent.com/FrankDengAI/TeamMind_AI/main/%E9%9F%B3%E9%A2%91%E8%AE%B2%E8%A7%A3.mp3'
+    const rawFallback = 'https://raw.githubusercontent.com/FrankDengAI/TeamMind_AI/main/%E9%9F%B3%E9%A2%91%E8%AE%B2%E8%A7%A3.m4a'
     function showErr(msg) {
       err.innerHTML = msg
       err.classList.add('show')
     }
     player.addEventListener('error', function () {
       showErr(
-        '无法加载音频。请确认仓库根目录已上传 <code>audio-intro.mp3</code>（约 4MB），并与 listen.html 一起 push 到开启 Pages 的分支。<br>' +
+        '无法加载音频。请确认仓库根目录已上传 <code>audio-intro.m4a</code>，并与 listen.html 一起 push 到开启 Pages 的分支。<br>' +
         '也可尝试 <a href="' + rawFallback + '">直接下载原文件</a>。'
       )
     })
