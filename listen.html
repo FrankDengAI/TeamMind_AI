@@ -48,25 +48,55 @@
   <main>
     <h1>TeamMind 音频讲解</h1>
     <p>点击下方播放按钮即可收听（音频与页面同一站点，避免跨域无法播放）。</p>
-    <!-- 必须与 listen.html 同目录一起推到 GitHub，文件名用英文最稳 -->
-    <audio id="player" controls preload="metadata" src="audio-intro.m4a"></audio>
+    <!--
+      二维码请仍指向本页（地址不变）：
+      https://frankdengai.github.io/TeamMind_AI/listen.html
+
+      音频文件路径与原先一致，仅后缀 mp3 → m4a：
+      - Pages 同源：audio-intro.m4a（原 audio-intro.mp3）
+      - GitHub Raw：…/音频讲解.m4a（原 …/音频讲解.mp3）
+    -->
+    <audio id="player" controls preload="metadata"></audio>
     <div id="err" class="err"></div>
     <p class="hint">组队超脑 TeamMind AI</p>
   </main>
   <script>
     const player = document.getElementById('player')
     const err = document.getElementById('err')
-    const rawFallback = 'https://raw.githubusercontent.com/FrankDengAI/TeamMind_AI/main/%E9%9F%B3%E9%A2%91%E8%AE%B2%E8%A7%A3.m4a'
+    // 与原先相同的链接结构，仅扩展名改为 m4a
+    const AUDIO_SOURCES = [
+      'audio-intro.m4a',
+      '%E9%9F%B3%E9%A2%91%E8%AE%B2%E8%A7%A3.m4a',
+      'https://raw.githubusercontent.com/FrankDengAI/TeamMind_AI/main/%E9%9F%B3%E9%A2%91%E8%AE%B2%E8%A7%A3.m4a',
+    ]
+    const rawDownload = AUDIO_SOURCES[AUDIO_SOURCES.length - 1]
+    let sourceIndex = 0
+
     function showErr(msg) {
       err.innerHTML = msg
       err.classList.add('show')
     }
+
+    function loadSource(index) {
+      sourceIndex = index
+      err.classList.remove('show')
+      player.src = AUDIO_SOURCES[index]
+      player.load()
+    }
+
     player.addEventListener('error', function () {
+      if (sourceIndex + 1 < AUDIO_SOURCES.length) {
+        loadSource(sourceIndex + 1)
+        return
+      }
       showErr(
-        '无法加载音频。请确认仓库根目录已上传 <code>audio-intro.m4a</code>，并与 listen.html 一起 push 到开启 Pages 的分支。<br>' +
-        '也可尝试 <a href="' + rawFallback + '">直接下载原文件</a>。'
+        '无法加载音频。请确认仓库已上传 <code>audio-intro.m4a</code> 或 <code>音频讲解.m4a</code>（原 mp3 同名改后缀即可）。<br>' +
+        '二维码链接仍用 <code>listen.html</code>，无需更换页面地址。<br>' +
+        '也可 <a href="' + rawDownload + '">直接下载音频</a>（原 raw 链接，现为 .m4a）。'
       )
     })
+
+    loadSource(0)
   </script>
 </body>
 </html>
